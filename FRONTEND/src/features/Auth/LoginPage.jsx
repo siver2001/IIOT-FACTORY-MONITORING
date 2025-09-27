@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Typography, message } from 'antd';
-import { UserOutlined, LockOutlined, ThunderboltOutlined, LoginOutlined } from '@ant-design/icons'; // Thêm icon
+// IMPORT App để sử dụng App.useApp() và loại bỏ message tĩnh
+import { Form, Input, Button, Card, Typography, App } from 'antd'; 
+import { UserOutlined, LockOutlined, ThunderboltOutlined, LoginOutlined } from '@ant-design/icons'; 
 import { useAuth } from '../../context/AuthContext.jsx';
-import { useNavigate } from 'react-router-dom'; // Dù không dùng navigate trực tiếp, vẫn giữ để đảm bảo cấu trúc
+import { useNavigate } from 'react-router-dom'; 
 
 const { Title, Text } = Typography;
 
-const LoginPage = () => {
+// Component nội dung chính
+const LoginPageContent = () => {
+    // SỬ DỤNG HOOK MESSAGE ĐỘNG (Giải quyết cảnh báo message context)
+    const { message } = App.useApp(); 
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
 
     const handleLogin = async (values) => {
         setLoading(true);
-        message.loading({ content: 'Đang xác thực...', key: 'loginProcess', duration: 0 }); // duration: 0 để giữ message
+        message.loading({ content: 'Đang xác thực...', key: 'loginProcess', duration: 0 }); 
 
         try {
             await new Promise(resolve => setTimeout(resolve, 1500)); 
@@ -37,26 +41,30 @@ const LoginPage = () => {
             alignItems: 'center',
             minHeight: '100vh',
             // Thay đổi hình nền: Gradient sống động hơn
-            background: 'linear-gradient(135deg, #6DD5ED 0%, #2193B0 100%)', // Một gradient xanh tươi mới
-            fontFamily: 'Roboto, sans-serif', // Sử dụng font hiện đại
+            background: 'linear-gradient(135deg, #6DD5ED 0%, #2193B0 100%)', 
+            fontFamily: 'Roboto, sans-serif', 
         }}>
             <Card
-                bordered={false}
+                // FIX: Thay thế bordered={false} bằng variant="borderless"
+                variant="borderless"
                 style={{
-                    width: 450, // Rộng hơn một chút
-                    borderRadius: 16, // Bo tròn mềm mại hơn
-                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)', // Đổ bóng sâu hơn
-                    background: 'rgba(255, 255, 255, 0.95)', // Card hơi trong suốt để thấy nền
-                    backdropFilter: 'blur(5px)', // Hiệu ứng làm mờ nhẹ phía sau card
-                    padding: 20, // Tăng padding bên trong
+                    width: 450, 
+                    borderRadius: 16, 
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)', 
+                    background: 'rgba(255, 255, 255, 0.95)', 
+                    backdropFilter: 'blur(5px)', 
+                    padding: 20, 
                 }}
-                headStyle={{ borderBottom: 'none', textAlign: 'center', paddingBottom: 0 }}
-                bodyStyle={{ paddingTop: 0 }}
+                // FIX: Thay thế headStyle và bodyStyle bằng styles prop
+                styles={{ 
+                    header: { borderBottom: 'none', textAlign: 'center', paddingBottom: 0 },
+                    body: { paddingTop: 0 }
+                }}
             >
                 {/* Tiêu đề & Logo */}
                 <div style={{ textAlign: 'center', marginBottom: 30 }}>
                     <ThunderboltOutlined 
-                        style={{ fontSize: '60px', color: '#2193B0', marginBottom: 10 }} // Icon lớn và màu sắc tương ứng
+                        style={{ fontSize: '60px', color: '#2193B0', marginBottom: 10 }} 
                     />
                     <Title level={2} style={{ 
                         margin: 0, 
@@ -76,16 +84,16 @@ const LoginPage = () => {
                     name="login_form"
                     initialValues={{ remember: true }}
                     onFinish={handleLogin}
-                    size="large" // Kích thước input lớn hơn
+                    size="large" 
                 >
                     <Form.Item
                         name="username"
                         rules={[{ required: true, message: 'Vui lòng nhập Tên đăng nhập!' }]}
                     >
                         <Input
-                            prefix={<UserOutlined style={{ color: '#2193B0' }} />} // Icon màu xanh
+                            prefix={<UserOutlined style={{ color: '#2193B0' }} />} 
                             placeholder="Tên đăng nhập (admin)"
-                            className="modern-input" // Thêm class để tùy chỉnh CSS
+                            className="modern-input" 
                         />
                     </Form.Item>
 
@@ -94,9 +102,9 @@ const LoginPage = () => {
                         rules={[{ required: true, message: 'Vui lòng nhập Mật khẩu!' }]}
                     >
                         <Input.Password
-                            prefix={<LockOutlined style={{ color: '#2193B0' }} />} // Icon màu xanh
+                            prefix={<LockOutlined style={{ color: '#2193B0' }} />} 
                             placeholder="Mật khẩu (123456)"
-                            className="modern-input" // Thêm class để tùy chỉnh CSS
+                            className="modern-input" 
                         />
                     </Form.Item>
 
@@ -106,17 +114,17 @@ const LoginPage = () => {
                             htmlType="submit"
                             block
                             loading={loading}
-                            icon={<LoginOutlined />} // Thêm icon vào nút
+                            icon={<LoginOutlined />} 
                             style={{ 
-                                height: 50, // Nút cao hơn
-                                fontSize: 18, // Text lớn hơn
+                                height: 50, 
+                                fontSize: 18, 
                                 fontWeight: 600,
-                                background: 'linear-gradient(45deg, #2193B0 0%, #6DD5ED 100%)', // Gradient cho nút
+                                background: 'linear-gradient(45deg, #2193B0 0%, #6DD5ED 100%)', 
                                 border: 'none',
-                                borderRadius: 8, // Bo tròn nút
-                                boxShadow: '0 4px 15px rgba(33, 147, 176, 0.4)', // Đổ bóng nhẹ cho nút
+                                borderRadius: 8, 
+                                boxShadow: '0 4px 15px rgba(33, 147, 176, 0.4)', 
                             }}
-                            className="modern-button" // Thêm class để tùy chỉnh CSS
+                            className="modern-button" 
                         >
                             {loading ? 'Đang xử lý...' : 'Đăng nhập'}
                         </Button>
@@ -126,5 +134,12 @@ const LoginPage = () => {
         </div>
     );
 };
+
+// Component Wrapper sử dụng App của Ant Design
+const LoginPage = () => (
+    <App>
+        <LoginPageContent />
+    </App>
+);
 
 export default LoginPage;

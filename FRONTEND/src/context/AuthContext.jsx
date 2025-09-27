@@ -1,5 +1,6 @@
+// File: FRONTEND/src/context/AuthContext.jsx
+
 import React, { createContext, useContext, useState } from 'react';
-import { message } from 'antd';
 
 // Tạo Context
 const AuthContext = createContext(null);
@@ -16,6 +17,7 @@ export const AuthProvider = ({ children }) => {
     const login = (token, role) => {
         localStorage.setItem('jwtToken', token);
         localStorage.setItem('userRole', role);
+        localStorage.setItem('username', role === 'Admin' ? 'admin_factory' : 'user');
         setIsAuthenticated(true);
     };
 
@@ -23,8 +25,9 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         localStorage.removeItem('jwtToken');
         localStorage.removeItem('userRole');
+        localStorage.removeItem('username');
         setIsAuthenticated(false);
-        message.info('Bạn đã đăng xuất.');
+        // Lời gọi message.info() đã được di chuyển ra khỏi đây
     };
 
     const value = {
@@ -32,6 +35,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         userRole: localStorage.getItem('userRole'),
+        username: localStorage.getItem('username') || 'Guest' 
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

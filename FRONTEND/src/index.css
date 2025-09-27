@@ -2,6 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.2; } /* Giảm opacity sâu hơn để hiệu ứng rõ ràng hơn */
+    100% { opacity: 1; }
+}
+
+/* Áp dụng animation cho class tw-animate-pulse (để ghi đè/xác nhận) */
+.tw-animate-pulse {
+    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Ghi đè màu chữ và icon cho mục menu có class 'alert-active-flash' */
+.ant-menu-dark .alert-active-flash .ant-menu-title-content a,
+.ant-menu-dark .alert-active-flash .ant-menu-title-content span {
+    /* Đảm bảo màu đỏ cho cả label và số lượng */
+    color: #ff4d4f !important; 
+    text-shadow: 0 0 5px rgba(255, 77, 79, 0.5); /* Thêm đổ bóng nhẹ để nổi bật */
+}
+
+/* Ép buộc màu đỏ cho ICON */
+.ant-menu-dark .alert-active-flash .anticon {
+    color: #ff4d4f !important; 
+}
+
+/* Áp dụng animation pulse cho item menu khi có lỗi */
+.ant-menu-dark .alert-active-flash.tw-animate-pulse {
+    /* Mặc dù animation đã được định nghĩa, đảm bảo nó được áp dụng */
+    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Đảm bảo trạng thái SELECTED cũng không ghi đè màu đỏ */
+.ant-menu-dark .alert-active-flash.ant-menu-item-selected .ant-menu-title-content a,
+.ant-menu-dark .alert-active-flash.ant-menu-item-selected .ant-menu-title-content span,
+.ant-menu-dark .alert-active-flash.ant-menu-item-selected .anticon {
+    color: #ff4d4f !important;
+}
+
 /* Tùy chỉnh input hiện đại */
 .ant-input-affix-wrapper.modern-input, 
 .ant-input-password.modern-input {

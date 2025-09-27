@@ -1,9 +1,12 @@
+// File: FRONTEND/src/main.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ConfigProvider, App as AntdApp } from 'antd'; // <-- IMPORT AntdApp
+import { ConfigProvider, App as AntdApp } from 'antd'; 
 import App from './App.jsx';
 import './index.css'; 
 import { AuthProvider } from './context/AuthContext.jsx'; 
+import GlobalMessageProvider from './components/GlobalMessageProvider.jsx'; // <-- IMPORT MỚI
 
 // Đảm bảo import Ant Design Styles
 import 'antd/dist/reset.css'; 
@@ -25,7 +28,8 @@ const customTheme = {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ConfigProvider theme={customTheme}>
-      <AntdApp> {}
+      <AntdApp> 
+        <GlobalMessageProvider /> {/* <-- THÊM PROVIDER */}
         <AuthProvider> 
           <App />
         </AuthProvider>

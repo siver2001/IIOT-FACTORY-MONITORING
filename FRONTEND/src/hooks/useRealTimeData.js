@@ -11,6 +11,14 @@ const generateMockData = () => ({
   RunningCount: faker.number.int({ min: 100, max: 130 }),
   ErrorCount: faker.number.int({ min: 2, max: 15 }),
   
+  // Dữ liệu SỨC KHỎE THIẾT BỊ MỚI
+  healthScore: parseFloat((faker.number.float({ min: 45, max: 99, multipleOf: 0.1 })).toFixed(1)),
+  healthHistory: Array.from({ length: 12 }, (_, i) => ({
+    time: `${i * 2}:00`,
+    // Sức khỏe giảm dần từ 90 về 70
+    health: parseFloat((95 - i * 2 + faker.number.float({ min: -2, max: 2, multipleOf: 0.1 })).toFixed(1)),
+  })),
+
   // Dữ liệu cho biểu đồ Line Chart
   performanceHistory: Array.from({ length: 12 }, (_, i) => ({
     time: `${i * 2}:00`,

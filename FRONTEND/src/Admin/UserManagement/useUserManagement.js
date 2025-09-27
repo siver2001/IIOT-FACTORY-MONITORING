@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { message } from 'antd';
-
+import apiFetch from '../../services/apiService';
 // Dữ liệu mock ban đầu
 const initialUsers = [
     { key: '1', username: 'admin_root', role: 'Administrator', email: 'admin@factory.com', status: 'Active' },
@@ -86,10 +86,26 @@ export const useUserManagement = (userRole) => {
     // =================================================================
     // 4. CHỨC NĂNG HOÀN THÀNH (FINAL SAVE)
     // =================================================================
-    const handleFinalConfirm = useCallback(() => {
-        message.success(`Xác nhận hoàn thành! Đã lưu ${users.length} tài khoản vào hệ thống.`);
-        console.log('Final data confirmed and theoretically sent to backend:', users);
-    }, [users]);
+    const handleFinalConfirm = useCallback(async () => { 
+        if (isAdding || editingKey) {
+             message.warning('Vui lòng lưu hoặc hủy chỉnh sửa/thêm mới trước khi xác nhận.');
+             return;
+        }
+        
+        try {
+            // SỬ DỤNG apiFetch THAY THẾ CHO fetch TRỰC TIẾP
+            await apiFetch('/api/admin/users/save', { 
+                method: 'POST',
+                body: JSON.stringify({ users: users }), 
+            }, true); // authRequired = true
+
+            // Nếu apiFetch không ném lỗi, coi như thành công
+            message.success(`Xác nhận hoàn thành! Đã lưu ${users.length} tài khoản thành công.`);
+        } catch (error) {
+            // Lỗi mạng/401/500 đã được xử lý và thông báo toàn cục, nên không cần thông báo lại.
+            console.error('Final Save Error (Handled by API Service):', error);
+        }
+    }, [users, isAdding, editingKey]);
     
     // =================================================================
     // 5. LOGIC PHÂN QUYỀN
