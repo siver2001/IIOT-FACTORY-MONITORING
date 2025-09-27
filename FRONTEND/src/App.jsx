@@ -1,57 +1,61 @@
-// src/App.jsx
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; // <-- Thêm Navigate
+import MainLayout from './features/Layout/MainLayout';
+import LoginPage from './features/Auth/LoginPage';
+import DashboardPage from './features/Dashboard/DashboardPage';
+import MachineStatus from './features/Dashboard/MachineStatus'; 
+import OEECalculator from './features/Dashboard/OEECalculator';
+import UserManagement from './Admin/UserManagement';
+import { useAuth } from './context/AuthContext.jsx'; 
 
-// Import Layouts và Pages
-import MainLayout from './components/MainLayout'; // Import component Layout chính
-import LoginPage from './features/Auth/LoginPage'; // Import trang Đăng nhập
-import DashboardPage from './features/Dashboard/DashboardPage'; // Import Dashboard đã có
+// Giao diện Mock cho các trang chức năng khác
+const DefaultPage = ({ title }) => <div style={{ padding: 24 }}><h2>{title} đang được phát triển...</h2><p>Dữ liệu real-time vẫn đang chạy ngầm.</p></div>;
 
-// Thư viện cần thiết
-import { Spin } from 'antd'; // Dùng cho trạng thái tải
-
-// *************** COMPONENT BẢO VỆ ROUTE (PROTECTED ROUTE) ***************
-// Component này kiểm tra xem người dùng đã đăng nhập (có JWT token) hay chưa
-const ProtectedRoute = ({ children }) => {
-    // 1. Kiểm tra JWT Token trong localStorage
-    const isAuthenticated = localStorage.getItem('jwtToken'); 
-    
-    if (!isAuthenticated) {
-        // Nếu không có token, điều hướng về trang đăng nhập
-        return <Navigate to="/login" replace />;
-    }
-
-    // Tùy chọn: Thêm logic kiểm tra tính hợp lệ của token (expire time) tại đây
-    
-    // Nếu có token, cho phép truy cập nội dung
-    return children;
+// Component Wrapper để bảo vệ route
+const ProtectedRoute = ({ element: Component }) => {
+    const { isAuthenticated } = useAuth();
+    return isAuthenticated ? Component : <Navigate to="/login" replace />;
 };
-// ************************************************************************
 
+function App() {
+  const { isAuthenticated, logout } = useAuth(); // <-- SỬ DỤNG CONTEXT
 
-const App = () => (
-    <BrowserRouter>
-        <Routes>
-            {/* 1. Route Đăng nhập (Công khai) */}
-            <Route path="/login" element={<LoginPage />} />
+  return (
+    <Router>
+      <Routes>
+        
+        {/* Route Đăng nhập */}
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+        
+        {/* Route Chính (Protected) */}
+        <Route path="/" element={<ProtectedRoute element={<MainLayout />} />}>
+          {/* Dashboard Chính */}
+          <Route index element={<DashboardPage />} />
 
-            {/* 2. Route Chính (Yêu cầu đăng nhập) */}
-            <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-                {/* Trang mặc định sau khi đăng nhập: Điều hướng đến Dashboard */}
-                <Route index element={<Navigate to="/dashboard" replace />} /> 
+          {/* Monitoring Routes */}
+          <Route path="production/status" element={<MachineStatus />} />
+          <Route path="production/logs" element={<DefaultPage title="Lịch sử Vận hành (Data Historian)" />} />
 
-                {/* Các Route con bên trong MainLayout */}
-                <Route path="dashboard" element={<DashboardPage />} /> 
-                <Route path="analytics/kpi" element={<h2>Trang Phân tích KPIs</h2>} />
-                <Route path="alerts" element={<h2>Trang Quản lý Cảnh báo</h2>} />
-                <Route path="management/machines" element={<h2>Trang Cấu hình Máy</h2>} />
-                <Route path="management/users" element={<h2>Trang Quản lý Người dùng</h2>} />
-            </Route>
-            
-            {/* 3. Redirect tất cả các path không khớp về trang đăng nhập */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-    </BrowserRouter>
-);
+          {/* KPI Analytics Routes */}
+          <Route path="kpi/oee" element={<OEECalculator />} />
+          <Route path="kpi/mtbf" element={<DefaultPage title="Phân tích MTBF/MTTR" />} />
+          <Route path="kpi/quality" element={<DefaultPage title="Phân tích Chất lượng" />} />
+          
+          {/* Alert & Admin Routes */}
+          <Route path="alerts" element={<DefaultPage title="Quản lý Cảnh báo Chi tiết" />} />
+          <Route path="admin/users" element={<UserManagement />} />
+          <Route path="admin/config" element={<DefaultPage title="Cấu hình Thiết bị & Tags" />} />
+          
+          {/* Fallback Route */}
+          <Route path="*" element={<DefaultPage title="404 - Trang không tồn tại" />} />
+        </Route>
+        
+        {/* Chuyển hướng các đường dẫn không hợp lệ hoặc chưa đăng nhập */}
+        <Route path="*" element={isAuthenticated ? <Navigate to="/" replace /> : <Navigate to="/login" replace />} />
+        
+      </Routes>
+    </Router>
+  );
+}
 
 export default App;
