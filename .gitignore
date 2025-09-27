@@ -2,7 +2,7 @@
 /node_modules
 /FRONTEND/node_modules
 /BACKEND/node_modules
-/IOT_GATEWAY/node_modules
+/GATEWAY/node_modules
 
 # Environment variables
 .env

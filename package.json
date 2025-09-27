@@ -1,0 +1,23 @@
+{
+  "name": "iiot-factory-monitoring",
+  "version": "1.0.0",
+  "description": "Root package for IIoT Factory Monitoring System (Gateway, Backend, Frontend)",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install",
+    "start": "concurrently \"npm run start --workspace BACKEND\" \"npm run start --workspace GATEWAY\" \"npm run start --workspace FRONTEND\"",
+    "start:frontend": "npm run start --workspace FRONTEND",
+    "start:backend": "npm run start --workspace BACKEND",
+    "start:gateway": "npm run start --workspace GATEWAY",
+    "test": "echo \"Warning: Root tests are missing. Running sub-package tests.\" && npm test --workspaces"
+  },
+  "workspaces": [
+    "FRONTEND",
+    "BACKEND",
+    "GATEWAY"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
