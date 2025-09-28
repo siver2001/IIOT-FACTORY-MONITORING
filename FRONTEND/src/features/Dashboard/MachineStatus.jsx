@@ -1,13 +1,16 @@
-import React, { useMemo } from 'react'; // <-- ĐÃ THÊM useMemo
+// FRONTEND/src/features/Dashboard/MachineStatus.jsx
+
+import React, { useMemo } from 'react'; 
 import { Card, Col, Row, Table, Tag, Typography, Button, Space, Divider, Statistic } from 'antd';
-import { CheckCircleOutlined, StopOutlined, AlertOutlined, LoadingOutlined, DesktopOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, StopOutlined, AlertOutlined, LoadingOutlined, DesktopOutlined, ClockCircleOutlined, ProfileOutlined } from '@ant-design/icons';
 import { useRealTimeData } from '../../hooks/useRealTimeData';
+import { Link } from 'react-router-dom'; // Import Link
 
 const { Title } = Typography;
 
 // Mock Data cho danh sách máy (Giữ nguyên bên ngoài)
 const mockMachines = Array.from({ length: 10 }, (_, i) => ({
-    id: `M-LineA-${101 + i}`,
+    id: `M-CNC-${101 + i}`,
     area: 'Dây chuyền A',
     model: `CNC Lathe ${i + 1}`,
     status: i % 3 === 0 ? 'ERROR' : i % 3 === 1 ? 'IDLE' : 'RUN',
@@ -18,8 +21,8 @@ const mockMachines = Array.from({ length: 10 }, (_, i) => ({
 // Hàm logic để xác định trạng thái (Nhận data qua tham số)
 const getStatusData = (machineId, data) => {
     // Mô phỏng data real-time ảnh hưởng đến trạng thái
-    if (data.ErrorCount > 10 && machineId.includes('LineA-102')) return 'CRITICAL';
-    if (data.RunningCount < 105 && machineId.includes('LineA-101')) return 'IDLE';
+    if (data.ErrorCount > 10 && machineId.includes('CNC-102')) return 'CRITICAL';
+    if (data.RunningCount < 105 && machineId.includes('CNC-101')) return 'IDLE';
     return mockMachines.find(m => m.id === machineId)?.status || 'UNKNOWN';
 };
 
@@ -40,7 +43,6 @@ const getStatusTag = (status) => {
 };
 
 const MachineStatus = () => {
-    // FIX LỖI HOOK: Gọi hook MỘT LẦN ở cấp component
     const liveData = useRealTimeData();
     
     // FIX LỖI HOOK: Định nghĩa columns trong useMemo để sử dụng liveData
@@ -53,13 +55,11 @@ const MachineStatus = () => {
             dataIndex: 'status',
             key: 'status',
             render: (text, record) => {
-                // SỬ DỤNG liveData đã được lấy từ hook
                 const liveStatus = getStatusData(record.id, liveData); 
                 return getStatusTag(liveStatus);
             },
             sorter: (a, b) => a.status.localeCompare(b.status),
             filters: [{ text: 'RUN', value: 'RUN' }, { text: 'ERROR', value: 'ERROR' }],
-            // SỬ DỤNG liveData để lọc dữ liệu
             onFilter: (value, record) => getStatusData(record.id, liveData) === value, 
             width: 150
         },
@@ -80,13 +80,15 @@ const MachineStatus = () => {
             width: 130
         },
         {
-            title: 'Thao tác',
+            title: 'Hồ sơ', // Thay đổi tên cột
             key: 'action',
             width: 150,
             render: (_, record) => (
-                <Button size="small" onClick={() => console.log(`View detail for ${record.id}`)} icon={<DesktopOutlined />}>
-                    Xem chi tiết
-                </Button>
+                <Link to={`/maintenance/profile/${record.id}`}>
+                    <Button size="small" icon={<ProfileOutlined />}>
+                        Xem Hồ sơ
+                    </Button>
+                </Link>
             ),
         },
     ]), [liveData]); // Dependency array: Re-calculate columns khi liveData thay đổi
@@ -98,7 +100,6 @@ const MachineStatus = () => {
             
             <Row gutter={16}>
                 <Col span={6}>
-                    {/* FIX: Thay bordered={false} bằng variant="borderless" */}
                     <Card variant="borderless" style={{ borderLeft: '4px solid #1677ff' }}>
                         <Statistic title="Máy đang Chạy" value={liveData.RunningCount} prefix={<CheckCircleOutlined style={{ color: 'green' }} />} />
                     </Card>

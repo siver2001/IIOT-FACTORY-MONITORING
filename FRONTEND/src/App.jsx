@@ -1,3 +1,5 @@
+// FRONTEND/src/App.jsx
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; 
 import MainLayout from './features/Layout/MainLayout';
@@ -10,9 +12,16 @@ import BatchControl from './features/Production/BatchControl';
 import ReliabilityAnalysisPage from './features/KPI/ReliabilityAnalysisPage'; 
 import QualityAnalysisPage from './features/KPI/QualityAnalysisPage'; 
 import AlertManagementPage from './features/Alerts/AlertManagementPage'; 
+import FaultKnowledgeBasePage from './features/Alerts/FaultKnowledgeBasePage'; 
 import UserManagement from './Admin/UserManagement';
-import AssetManagementPage from './Admin/AssetManagementPage'; // <-- Đã import
+import AssetManagementPage from './Admin/AssetManagementPage'; 
 import DeviceConfigPage from './Admin/DeviceConfig/DeviceConfigPage'; 
+// Import các trang Bảo trì
+import WorkOrderManagementPage from './maintenance/WorkOrderManagementPage';
+import MaintenanceCalendarPage from './maintenance/MaintenanceCalendarPage';
+import MaintenanceDashboardPage from './maintenance/MaintenanceDashboardPage';
+import SparePartsInventoryPage from './maintenance/SparePartsInventoryPage'; 
+import MachineProfilePage from './maintenance/MachineProfilePage'; 
 import { useAuth } from './context/AuthContext.jsx'; 
 
 // Giao diện Mock cho các trang chức năng khác
@@ -43,20 +52,33 @@ function App() {
                     <Route path="production/status" element={<MachineStatus />} />
                     <Route path="production/logs" element={<OperationHistoryPage />} /> 
                     <Route path="production/batch" element={<BatchControl />} /> 
+                    
+                    {/* Module Bảo trì */}
+                    <Route path="maintenance">
+                        <Route path="dashboard" element={<MaintenanceDashboardPage />} /> 
+                        <Route path="work-orders" element={<WorkOrderManagementPage />} />
+                        <Route path="inventory" element={<SparePartsInventoryPage />} /> 
+                        {/* Đã xóa route: <Route path="purchase-request" element={<PurchaseRequestPage />} /> */}
+                        <Route path="calendar" element={<MaintenanceCalendarPage />} />
+                        <Route path="profile/:id" element={<MachineProfilePage />} />
+                    </Route>
 
                     {/* KPI Analytics Routes */}
                     <Route path="kpi/oee" element={<OEECalculator />} />
                     <Route path="kpi/mtbf" element={<ReliabilityAnalysisPage />} /> 
                     <Route path="kpi/quality" element={<QualityAnalysisPage />} /> 
                     
-                    {/* Alert & Admin Routes */}
-                    <Route path="alerts" element={<AlertManagementPage />} />
+                    {/* Alert Routes */}
+                    <Route path="alerts">
+                        <Route index element={<AlertManagementPage />} />
+                        <Route path="knowledge-base" element={<FaultKnowledgeBasePage />} /> 
+                    </Route>
                     
                     {/* NHÓM CÁC ROUTE ADMIN */}
                     <Route path="admin">
                         <Route path="users" element={<UserManagement />} />
                         <Route path="config" element={<DeviceConfigPage />} />
-                        <Route path="assets" element={<AssetManagementPage />} /> {/* <-- ROUTE BỊ THIẾU ĐÃ ĐƯỢC THÊM */}
+                        <Route path="assets" element={<AssetManagementPage />} />
                     </Route>
                     
                     {/* Fallback Route */}

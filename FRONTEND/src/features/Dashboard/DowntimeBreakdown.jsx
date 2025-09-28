@@ -36,7 +36,7 @@ const DowntimeBreakdown = () => {
             title={<Title level={4} style={{ margin: 0 }}><AreaChartOutlined /> Phân tích Dừng máy (Downtime Breakdown)</Title>}
             variant="default" 
             className="tw-shadow-md"
-            bodyStyle={{ padding: 16 }}
+            styles={{ body: { padding: 16 } }}
         >
             <Row gutter={16}>
                 <Col span={8}>

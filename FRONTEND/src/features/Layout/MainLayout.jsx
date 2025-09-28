@@ -1,10 +1,12 @@
+// FRONTEND/src/features/Layout/MainLayout.jsx
+
 import React, { useState } from 'react';
 // IMPORT THÊM App để dùng hook message
 import { Layout, Menu, Button, theme, Dropdown, Space, Badge, Avatar, App } from 'antd'; 
 import { Outlet, Link } from 'react-router-dom';
 import { 
     DashboardOutlined, BuildOutlined, AlertOutlined, SettingOutlined, 
-    UserOutlined, DownOutlined, BarChartOutlined, ShopOutlined
+    UserOutlined, DownOutlined, BarChartOutlined, ShopOutlined, ToolOutlined, StockOutlined, DollarOutlined // THÊM DollarOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../context/AuthContext.jsx'; 
 import { useRealTimeData } from '../../hooks/useRealTimeData'; 
@@ -23,16 +25,48 @@ const rawMenuItems = [
         { key: '/production/logs', label: 'Lịch sử Vận hành', link: '/production/logs' },
         { key: '/production/batch', label: 'Quản lý Lô (Batch)', link: '/production/batch' },
     ]},
-    { key: '/kpi', icon: <BarChartOutlined />, label: 'Phân tích Hiệu suất', children: [
+    // MỤC BẢO TRÌ ĐÃ CẬP NHẬT
+    { 
+        
+        key: '/maintenance',
+        icon: <ToolOutlined />,
+        label: 'Bảo Trì & Vận hành',
+        children: [
+            { key: '/maintenance/dashboard', label: 'Dashboard Hiệu suất', link: '/maintenance/dashboard' },
+            { key: '/maintenance/work-orders', label: 'Quản lý Lệnh công việc', link: '/maintenance/work-orders' },
+            { key: '/maintenance/inventory', icon: <StockOutlined />, label: 'Quản lý Kho Vật tư', link: '/maintenance/inventory' },
+            { key: '/maintenance/calendar', label: 'Lịch Bảo trì', link: '/maintenance/calendar' },
+        ]
+    },
+    { 
+        key: '/kpi', 
+        icon: <BarChartOutlined />, 
+        label: 'Phân tích Hiệu suất', 
+        children: [
         { key: '/kpi/oee', label: 'OEE Analyzer', link: '/kpi/oee' },
         { key: '/kpi/mtbf', label: 'MTBF/MTTR Report', link: '/kpi/mtbf' },
         { key: '/kpi/quality', label: 'Phân tích Chất lượng', link: '/kpi/quality' },
-    ]},
-    { key: '/alerts', icon: <AlertOutlined />, label: 'Quản lý Cảnh báo', link: '/alerts' },
-    { key: '/admin', icon: <SettingOutlined />, label: 'Quản trị Hệ thống', children: [
-        { key: '/admin/users', label: 'Quản lý Tài khoản', link: '/admin/users' },
-        { key: '/admin/config', label: 'Cấu hình Thiết bị', link: '/admin/config' },
-    ]},
+        ]
+},
+    { 
+        key: 'alerts-root', 
+        icon: <AlertOutlined />, 
+        label: 'Quản lý Cảnh báo', 
+        children: [
+            { key: '/alerts', label: 'Danh sách Cảnh báo', link: '/alerts' },
+            { key: '/alerts/knowledge-base', label: 'Kho tri thức Lỗi', link: '/alerts/knowledge-base' },
+        ]
+    },
+    { 
+        key: '/admin', 
+        icon: <SettingOutlined />, 
+        label: 'Quản trị Hệ thống', 
+        children: [
+            { key: '/admin/users', label: 'Quản lý Tài khoản', link: '/admin/users' },
+            { key: '/admin/config', label: 'Cấu hình Thiết bị', link: '/admin/config' },
+            { key: '/admin/assets', label: 'Quản lý Tài sản', link: '/admin/assets' },
+        ]
+    },
 ];
 
 /**
@@ -48,11 +82,19 @@ const transformMenuItems = (items, activeAlertCount) => {
         };
         
         // LOGIC CHỚP NHÁY VÀ MÀU ĐỎ CHO ITEM CẢNH BÁO
-        if (item.key === '/alerts' && activeAlertCount > 0) {
-             // 1. Thêm className tùy chỉnh để ghi đè màu chữ
-             menuItem.className = 'alert-active-flash tw-animate-pulse'; 
-             // 2. Ép buộc màu đỏ cho ICON
-             menuItem.icon = <AlertOutlined style={{ color: '#ff4d4f' }} />;
+        const isAlertRoot = item.key === 'alerts-root'; 
+        const hasActiveAlert = activeAlertCount > 0;
+        
+        if (isAlertRoot) {
+            if (hasActiveAlert) {
+                 // 1. Thêm className tùy chỉnh để ghi đè màu chữ
+                 menuItem.className = 'alert-active-flash tw-animate-pulse'; 
+                 // 2. Ép buộc màu đỏ cho ICON
+                 menuItem.icon = <AlertOutlined style={{ color: '#ff4d4f' }} />;
+            } else {
+                 menuItem.icon = <AlertOutlined />;
+                 menuItem.className = '';
+            }
         } else {
              // Đảm bảo icon AlertOutlined ban đầu vẫn là màu mặc định khi không có lỗi
              menuItem.icon = item.icon;
@@ -64,7 +106,7 @@ const transformMenuItems = (items, activeAlertCount) => {
             menuItem.children = transformMenuItems(item.children, activeAlertCount);
         } else {
             // 3. Hiển thị label kèm số lượng và hiệu ứng nhấp nháy (chỉ cho link)
-            const labelContent = (item.key === '/alerts' && activeAlertCount > 0) ? (
+            const labelContent = (item.key === '/alerts' && hasActiveAlert) ? (
                 // Chỉ cần thêm số lượng, màu sắc và nhấp nháy sẽ do CSS đảm nhận
                 <span>{item.label} ({activeAlertCount})</span> 
             ) : item.label;
@@ -123,7 +165,7 @@ const MainLayoutContent = () => {
                     theme="dark" 
                     mode="inline" 
                     defaultSelectedKeys={['/']} 
-                    defaultOpenKeys={['/production', '/kpi', '/admin']}
+                    defaultOpenKeys={['/production', '/maintenance', '/kpi', '/alerts', '/admin']}
                     items={sidebarMenuItems}
                 />
             </Sider>

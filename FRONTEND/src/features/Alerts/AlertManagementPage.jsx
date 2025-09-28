@@ -1,5 +1,6 @@
+// FRONTEND/src/features/Alerts/AlertManagementPage.jsx
+
 import React, { useState, useMemo } from 'react';
-// THÊM DatePicker vào import
 import { Typography, Space, Table, Tag, Row, Col, Card, Select, Button, Modal, Form, Input, Divider, Statistic, DatePicker } from 'antd'; 
 import { 
     AlertOutlined, HistoryOutlined, CheckCircleOutlined, WarningOutlined, 
@@ -12,7 +13,7 @@ import { App } from 'antd';
 
 const { Title } = Typography;
 const { Option } = Select;
-const { RangePicker } = DatePicker; // DÙNG RangePicker
+const { RangePicker } = DatePicker; 
 
 // Hàm hỗ trợ export CSV (Giữ nguyên)
 const exportAlertsToCSV = (data, columns, filename = 'alert_history.csv') => {
@@ -25,7 +26,7 @@ const exportAlertsToCSV = (data, columns, filename = 'alert_history.csv') => {
         { dataIndex: 'status', title: 'Trạng thái' },
         { dataIndex: 'acknowledgedBy', title: 'Người Xác nhận' },
         { dataIndex: 'faultCode', title: 'Mã Lỗi' },
-        { dataIndex: 'resolvedNotes', title: 'Ghi chú Giải quyết' }, // Chứa JSON string
+        { dataIndex: 'resolvedInfo', title: 'Ghi chú Giải quyết' }, // Chứa JSON string
     ];
     
     const headers = exportColumns.map(col => col.title);
@@ -38,7 +39,7 @@ const exportAlertsToCSV = (data, columns, filename = 'alert_history.csv') => {
                 
                 if (col.dataIndex === 'timestamp') {
                     value = dayjs(value).format('YYYY-MM-DD HH:mm:ss');
-                } else if (col.dataIndex === 'resolvedNotes' && value) {
+                } else if (col.dataIndex === 'resolvedInfo' && value) {
                     try {
                         const notes = JSON.parse(value);
                         // Định dạng nội dung ghi chú thành chuỗi dễ đọc
@@ -82,12 +83,12 @@ const AlertManagementPageContent = () => {
     const { username } = useAuth();
     const { message } = App.useApp();
     const { 
-        kpiSummary, MACHINE_IDS, SEVERITIES, getFilteredAlerts, updateAlertStatus
+        kpiSummary, MACHINE_IDS, SEVERITIES, getFilteredAlerts, updateAlertStatus, resolveAlertAndCreateWO
     } = useAlertManagement(); 
 
-    // === FILTER STATES MỚI ===
+    // === FILTER STATES ===
     const [filters, setFilters] = useState({
-        status: 'Active', // Default filter
+        status: 'Active', 
         severity: null,
         machineId: null,
         dateRange: null, 
@@ -113,30 +114,24 @@ const AlertManagementPageContent = () => {
         if (action === 'resolve') {
             setIsModalVisible(true);
             try {
-                // Lấy resolvedInfo, chú ý cập nhật key từ resolvedNotes
                 const info = record.resolvedInfo ? JSON.parse(record.resolvedInfo) : { cause: '', action: '', faultCode: null };
                 form.setFieldsValue({ cause: info.cause, action: info.action, faultCode: info.faultCode });
             } catch (e) {
                  form.setFieldsValue({ cause: '', action: '', faultCode: null });
             }
         } else if (action === 'acknowledge') {
-            // Không cần faultCode khi chỉ xác nhận
-            handleFinalResolve(record, 'Acknowledged', null, null); 
+            // Chỉ xác nhận Alert, không cần tạo WO
+            updateAlertStatus(record.id, 'Acknowledged', username); 
+            message.success(`Đã xác nhận cảnh báo ${record.machineId}.`);
         }
     };
 
-    const handleFinalResolve = (alert, status, notes = null, faultCode = null) => {
-        
-        updateAlertStatus(alert.id, status, username, notes, faultCode);
+    // Hàm xử lý Form Submit (Gọi hàm giải quyết VÀ tạo WO tự động)
+    const onResolveFormSubmit = (values) => {
+        // Gọi hàm mới: Giải quyết Alert VÀ Tự động Tạo WO
+        resolveAlertAndCreateWO(currentAlert.id, values, username);
         setIsModalVisible(false);
         setCurrentAlert(null);
-        message.success(`Đã cập nhật trạng thái cảnh báo ${alert.machineId} sang ${status}.`);
-    };
-    // Hàm xử lý Form Submit
-    const onResolveFormSubmit = (values) => {
-        const { cause, action, faultCode } = values;
-        const notes = { cause, action };
-        handleFinalResolve(currentAlert, 'Resolved', notes, faultCode);
     }
     
     // Xử lý Export (Giữ nguyên)
@@ -153,7 +148,7 @@ const AlertManagementPageContent = () => {
             { dataIndex: 'message', title: 'Thông báo Chi tiết' },
             { dataIndex: 'status', title: 'Trạng thái' },
             { dataIndex: 'acknowledgedBy', title: 'Người Xác nhận' },
-            { dataIndex: 'resolvedNotes', title: 'Ghi chú Giải quyết' },
+            { dataIndex: 'resolvedInfo', title: 'Ghi chú Giải quyết' },
         ];
         exportAlertsToCSV(alerts, columns, filename); 
         message.success(`Đã xuất ${alerts.length} bản ghi thành công.`);
@@ -174,7 +169,7 @@ const AlertManagementPageContent = () => {
         { title: 'Mức độ', dataIndex: 'severity', key: 'severity', render: getSeverityTag, width: 120 },
         { title: 'Thông báo Chi tiết', dataIndex: 'message', key: 'message' },
         { 
-            title: 'Mã Lỗi', // CỘT MÃ LỖI
+            title: 'Mã Lỗi', 
             dataIndex: 'faultCode', 
             key: 'faultCode',
             width: 100,
@@ -189,7 +184,7 @@ const AlertManagementPageContent = () => {
         },
         { 
             title: 'Ghi chú Giải quyết', 
-            dataIndex: 'resolvedInfo', // Đổi tên key
+            dataIndex: 'resolvedInfo', 
             key: 'resolvedInfo',
             render: (text) => text ? <span className='tw-text-green-600'>Đã ghi chú</span> : <span className='tw-text-gray-400'>Chưa có</span>,
             width: 150,
@@ -212,7 +207,6 @@ const AlertManagementPageContent = () => {
             fixed: 'right',
             render: (_, record) => (
                 <Space size="small">
-                    {/* ... (các button giữ nguyên) */}
                     {record.status === 'Active' && (
                         <Button 
                             size="small" 
@@ -231,7 +225,7 @@ const AlertManagementPageContent = () => {
                             danger={record.status === 'Active'}
                             type="default"
                         >
-                            Giải quyết
+                            Giải quyết & Tạo WO
                         </Button>
                     )}
                      {record.status === 'Resolved' && (
@@ -240,7 +234,7 @@ const AlertManagementPageContent = () => {
                 </Space>
             ),
         },
-    ]), [username]);
+    ]), [username, updateAlertStatus, resolveAlertAndCreateWO]);
 
 
     return (
@@ -313,12 +307,11 @@ const AlertManagementPageContent = () => {
                         {MACHINE_IDS.map(id => <Option key={id} value={id}>{id}</Option>)}
                     </Select>
                 </Col>
-                {/* THÊM BỘ LỌC THỜI GIAN */}
+                {/* BỘ LỌC THỜI GIAN */}
                 <Col span={7}>
                     <label className="tw-block tw-mb-1 tw-text-sm tw-font-medium">Khoảng Thời gian (Chi tiết):</label>
                     <RangePicker
                         style={{ width: '100%' }}
-                        // Cho phép chọn giờ, phút, giây
                         showTime={{ format: 'HH:mm:ss' }}
                         format="YYYY-MM-DD HH:mm:ss"
                         onChange={(dates) => handleFilterChange('dateRange', dates)}
@@ -362,17 +355,17 @@ const AlertManagementPageContent = () => {
                 <Form
                     form={form}
                     layout="vertical"
-                    onFinish={onResolveFormSubmit} // SỬ DỤNG HÀM MỚI
+                    onFinish={onResolveFormSubmit} 
                     initialValues={{ cause: '', action: '', faultCode: null }}
                 >
                     <p>Cảnh báo: <strong>{currentAlert?.message}</strong></p>
                     <p>Thời gian: {dayjs(currentAlert?.timestamp).format('YYYY-MM-DD HH:mm:ss')}</p>
                     <Divider />
                     
-                    {/* THÊM LỰA CHỌN MÃ LỖI */}
+                    {/* LỰA CHỌN MÃ LỖI */}
                     <Form.Item
                         name="faultCode"
-                        label={<Text strong><SelectOutlined /> 3. Mã Lỗi Đã Khắc phục (Fault Catalog)</Text>}
+                        label={<Text strong><SelectOutlined /> 1. Mã Lỗi Đã Khắc phục (Fault Catalog)</Text>}
                         rules={[{ required: true, message: 'Vui lòng chọn mã lỗi!' }]}
                     >
                         <Select
@@ -398,7 +391,7 @@ const AlertManagementPageContent = () => {
                     {/* Trường ghi chú nguyên nhân */}
                     <Form.Item
                         name="cause"
-                        label="1. Nguyên nhân Gốc rễ của Lỗi"
+                        label="2. Nguyên nhân Gốc rễ của Lỗi"
                         rules={[{ required: true, message: 'Vui lòng mô tả nguyên nhân gốc rễ!' }]}
                     >
                         <Input.TextArea rows={3} placeholder="Ví dụ: Cảm biến bị hỏng do tiếp xúc lâu với nhiệt độ cao..." />
@@ -407,7 +400,7 @@ const AlertManagementPageContent = () => {
                     {/* Trường ghi chú hành động khắc phục */}
                     <Form.Item
                         name="action"
-                        label="2. Hành động Khắc phục/Giải quyết"
+                        label="3. Hành động Khắc phục/Giải quyết"
                         rules={[{ required: true, message: 'Vui lòng mô tả hành động khắc phục!' }]}
                     >
                         <Input.TextArea rows={3} placeholder="Ví dụ: Đã thay thế cảm biến loại chịu nhiệt tốt hơn và hiệu chỉnh lại tần suất giám sát..." />
@@ -415,7 +408,7 @@ const AlertManagementPageContent = () => {
                     
                     <Form.Item style={{ marginBottom: 0 }}>
                         <Button type="primary" htmlType="submit" block icon={<CheckCircleOutlined />}>
-                            Xác nhận Giải quyết ({username})
+                            Xác nhận Giải quyết & Tạo WO ({username})
                         </Button>
                     </Form.Item>
                 </Form>
