@@ -4,15 +4,12 @@ import { useState, useCallback, useMemo } from 'react';
 import { App } from 'antd';
 import { faker } from '@faker-js/faker';
 import dayjs from 'dayjs';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'; // <--- DÒNG MỚI: Import plugin
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
-import { getPartPrice } from './PartsCatalog'; // Import để tính chi phí phụ tùng
+import { getPartPrice } from './PartsCatalog'; 
 
-// Mock dữ liệu người dùng/kỹ sư có thể gán công việc
 const ASSIGNEES = ['Kỹ sư A', 'Kỹ sư B', 'Kỹ sư C', 'Trưởng ca'];
-// Chi phí nhân công mock: 20 USD/giờ
 const LABOR_RATE = 20; 
-// Tổng giờ chạy mock cho tất cả máy (cho việc tính CPMH)
 const TOTAL_RUNNING_HOURS = 15000; 
 
 export const WORK_ORDER_STATUS = {
@@ -36,7 +33,7 @@ const mockInitialWorkOrders = Array.from({ length: 40 }, (_, i) => {
     if (isCompleted) {
         status = WORK_ORDER_STATUS.COMPLETED;
         completedAt = dueDate.subtract(faker.number.int({ min: 0, max: 2 }), 'day').toDate();
-        if (dayjs(completedAt).isSameOrBefore(dueDate, 'day')) {
+        if (dayjs(completedAt).isSameOrBefore(dayjs(dueDate), 'day')) {
              isCompliant = true;
         }
         laborHours = parseFloat(faker.number.float({ min: 1, max: 8, multipleOf: 0.5 }).toFixed(1));
@@ -65,7 +62,6 @@ const mockInitialWorkOrders = Array.from({ length: 40 }, (_, i) => {
     };
 });
 
-// Hàm tính tổng chi phí WO
 const calculateWOCost = (wo) => {
     let partsCost = 0;
     if (wo.partsUsed) {
@@ -75,12 +71,11 @@ const calculateWOCost = (wo) => {
     return parseFloat((partsCost + laborCost).toFixed(2));
 };
 
-
 export const useWorkOrder = () => {
     const { message } = App.useApp();
     const [workOrders, setWorkOrders] = useState(mockInitialWorkOrders);
 
-    // 1. Tạo Lệnh công việc mới (bao gồm cả thủ công và tự động)
+    // 1. Tạo Lệnh công việc mới (giữ nguyên)
     const createWorkOrder = useCallback((woData) => {
         const newWO = {
             id: `WO-${1000 + workOrders.length}`,
@@ -94,7 +89,7 @@ export const useWorkOrder = () => {
         return newWO;
     }, [workOrders.length, message]);
 
-    // 2. Cập nhật trạng thái/chi tiết WO
+    // 2. Cập nhật trạng thái/chi tiết WO (giữ nguyên)
     const updateWorkOrder = useCallback((woId, updates) => {
         setWorkOrders(prev => prev.map(wo => 
             wo.id === woId ? { ...wo, ...updates } : wo
@@ -102,7 +97,7 @@ export const useWorkOrder = () => {
         message.info(`Đã cập nhật Lệnh công việc: ${woId}`);
     }, [message]);
 
-    // 3. Logic Hoàn thành WO
+    // 3. Logic Hoàn thành WO (giữ nguyên)
     const completeWorkOrder = useCallback((woId, completionData) => {
         const completedDate = new Date();
         
@@ -124,7 +119,14 @@ export const useWorkOrder = () => {
         message.success(`Lệnh công việc ${woId} đã Hoàn thành!`);
     }, [message]);
     
-    // 4. KPI: PM Compliance (Tỷ lệ Tuân thủ PM)
+    // 4. CHỨC NĂNG MỚI: Xóa Lệnh công việc
+    const deleteWorkOrder = useCallback((woId) => {
+        setWorkOrders(prev => prev.filter(wo => wo.id !== woId));
+        message.warning(`Đã xóa Lệnh công việc: ${woId}`);
+    }, [message]);
+
+    // ... (các KPI và mockBulkImport giữ nguyên)
+
     const pmComplianceKPI = useMemo(() => {
         const pmOrders = workOrders.filter(wo => wo.type === 'PM');
         const totalPMCompleted = pmOrders.filter(wo => wo.status === WORK_ORDER_STATUS.COMPLETED).length;
@@ -142,7 +144,6 @@ export const useWorkOrder = () => {
         };
     }, [workOrders]);
 
-    // 5. KPI: Chi phí Bảo trì (CPMH) - MỚI
     const costKPI = useMemo(() => {
         const completedWOs = workOrders.filter(wo => wo.status === WORK_ORDER_STATUS.COMPLETED);
         
@@ -164,7 +165,6 @@ export const useWorkOrder = () => {
         };
     }, [workOrders]);
     
-    // 6. Bulk Import Dữ liệu Lịch sử (MOCK) - MỚI
     const mockBulkImport = useCallback(() => {
         message.info('Đang mô phỏng nhập 100 WO lịch sử từ Excel...');
         
@@ -187,14 +187,16 @@ export const useWorkOrder = () => {
         message.success(`Đã nhập thành công 100 WO lịch sử! Tổng cộng: ${workOrders.length + 100} WO.`);
     }, [message, workOrders.length]);
 
+
     return {
         workOrders,
         ASSIGNEES,
         pmComplianceKPI,
-        costKPI, // EXPORT KPI CHI PHÍ
+        costKPI, 
         createWorkOrder,
         updateWorkOrder,
         completeWorkOrder,
-        mockBulkImport, // EXPORT CHỨC NĂNG IMPORT
+        deleteWorkOrder, // <--- EXPORT HÀM XÓA
+        mockBulkImport, 
     };
 };

@@ -6,11 +6,12 @@ import { ConfigProvider, App as AntdApp } from 'antd';
 import App from './App.jsx';
 import './index.css'; 
 import { AuthProvider } from './context/AuthContext.jsx'; 
-import GlobalMessageProvider from './components/GlobalMessageProvider.jsx'; // <-- IMPORT MỚI
+import GlobalMessageProvider from "./components/GlobalMessageProvider.jsx";
 
 // Đảm bảo import Ant Design Styles
 import 'antd/dist/reset.css'; 
 
+// Thiết lập theme Ant Design (tùy chọn)
 // Thiết lập theme Ant Design (tùy chọn)
 const customTheme = {
   token: {
@@ -29,7 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ConfigProvider theme={customTheme}>
       <AntdApp> 
-        <GlobalMessageProvider /> {/* <-- THÊM PROVIDER */}
+        <GlobalMessageProvider /> {/* <-- THÀNH PHẦN NÀY CUNG CẤP message context */}
         <AuthProvider> 
           <App />
         </AuthProvider>

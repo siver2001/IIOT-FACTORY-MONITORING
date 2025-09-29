@@ -214,7 +214,7 @@ const AlertManagementPageContent = () => {
                             onClick={() => handleActionClick(record, 'acknowledge')}
                             type="primary"
                         >
-                            Xác nhận ({username})
+                            Xác nhận 
                         </Button>
                     )}
                     {(record.status === 'Active' || record.status === 'Acknowledged') && (

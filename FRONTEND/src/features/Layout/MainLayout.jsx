@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 // IMPORT THÊM App để dùng hook message
-import { Layout, Menu, Button, theme, Dropdown, Space, Badge, Avatar, App } from 'antd'; 
+import { Layout, Menu, Button, theme, Dropdown, Space, Badge, Avatar, App, Tag  } from 'antd'; 
 import { Outlet, Link } from 'react-router-dom';
 import { 
     DashboardOutlined, BuildOutlined, AlertOutlined, SettingOutlined, 
@@ -62,10 +62,11 @@ const rawMenuItems = [
         icon: <SettingOutlined />, 
         label: 'Quản trị Hệ thống', 
         children: [
-            { key: '/admin/users', label: 'Quản lý Tài khoản', link: '/admin/users' },
-            { key: '/admin/config', label: 'Cấu hình Thiết bị', link: '/admin/config' },
-            { key: '/admin/assets', label: 'Quản lý Tài sản', link: '/admin/assets' },
-        ]
+            { key: '/admin/users', label: 'Quản lý Tài khoản', link: '/admin/users', permissionLevel: 0 }, // Chỉ Admin (0)
+            { key: '/admin/config', label: 'Cấu hình Thiết bị', link: '/admin/config', permissionLevel: 1 }, // Admin (0) và Manager (1)
+            { key: '/admin/assets', label: 'Quản lý Tài sản', link: '/admin/assets', permissionLevel: 1 }, // Admin (0) và Manager (1)
+        ],
+        permissionLevel: 1 // Level cha: Supervisor (2) và User (3) không thấy menu này
     },
 ];
 
@@ -73,9 +74,13 @@ const rawMenuItems = [
  * Hàm đệ quy chuyển đổi Menu Item và thêm hiệu ứng Cảnh báo
  * @param {Array} items Danh sách menu items
  * @param {number} activeAlertCount Số lượng cảnh báo active
+ * @param {number} userRoleLevel Cấp độ quyền hạn của người dùng (0, 1, 2, 3)
  */
-const transformMenuItems = (items, activeAlertCount) => {
-    return items.map(item => {
+
+const transformMenuItems = (items, activeAlertCount, userRoleLevel) => {
+    return items
+        .filter(item => item.permissionLevel === undefined || userRoleLevel <= item.permissionLevel)
+        .map(item => {
         const menuItem = {
             key: item.key,
             icon: item.icon,
@@ -103,7 +108,7 @@ const transformMenuItems = (items, activeAlertCount) => {
 
         if (item.children) {
             menuItem.label = item.label;
-            menuItem.children = transformMenuItems(item.children, activeAlertCount);
+            menuItem.children = transformMenuItems(item.children, activeAlertCount, userRoleLevel); 
         } else {
             // 3. Hiển thị label kèm số lượng và hiệu ứng nhấp nháy (chỉ cho link)
             const labelContent = (item.key === '/alerts' && hasActiveAlert) ? (
@@ -119,7 +124,7 @@ const transformMenuItems = (items, activeAlertCount) => {
         }
         
         return menuItem;
-    });
+    }).filter(Boolean); // Lọc các mục menu bị ẩn (null)
 };
 
 
@@ -127,7 +132,6 @@ const transformMenuItems = (items, activeAlertCount) => {
 const MainLayoutContent = () => { 
     // SỬ DỤNG HOOK useApp() TẠI ĐÂY (Giải quyết cảnh báo message context)
     const { message } = App.useApp();
-    const { logout } = useAuth();
     const liveData = useRealTimeData(); 
 
     const activeAlertCount = liveData.liveAlerts.filter(a => a.severity === 'Critical' || a.severity === 'Error').length;
@@ -135,14 +139,16 @@ const MainLayoutContent = () => {
     const [collapsed, setCollapsed] = useState(false);
     const [currentFactory, setCurrentFactory] = useState(factories[0]);
     const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken(); 
-    
-    // HÀM MỚI: Xử lý Logout và Thông báo
+    const { logout, userRole, username, roleLevel } = useAuth(); // LẤY roleLevel
+    // ...
+    // Xử lý Logout và Thông báo
     const handleLogout = () => {
         logout();
         message.info('Bạn đã đăng xuất.'); 
     };
 
-    const sidebarMenuItems = React.useMemo(() => transformMenuItems(rawMenuItems, activeAlertCount), [activeAlertCount]); 
+    // Truyền roleLevel vào hàm tạo menu
+    const sidebarMenuItems = React.useMemo(() => transformMenuItems(rawMenuItems, activeAlertCount, roleLevel), [activeAlertCount, roleLevel]); 
 
     const notifications = liveData.liveAlerts.filter(a => a.severity === 'Critical' || a.severity === 'Error'); 
 
@@ -165,7 +171,7 @@ const MainLayoutContent = () => {
                     theme="dark" 
                     mode="inline" 
                     defaultSelectedKeys={['/']} 
-                    defaultOpenKeys={['/production', '/maintenance', '/kpi', '/alerts', '/admin']}
+                    defaultOpenKeys={['/production', '/maintenance', '/kpi', 'alerts-root', '/admin']}
                     items={sidebarMenuItems}
                 />
             </Sider>
@@ -192,11 +198,12 @@ const MainLayoutContent = () => {
                             <AlertOutlined style={{ fontSize: '24px', color: notifications.length > 0 ? '#ff4d4f' : '#000' }} />
                         </Badge>
 
-                        <Dropdown menu={{ items: userMenuItems }} trigger={['click']}> 
+                         <Dropdown menu={{ items: userMenuItems }} trigger={['click']}> 
                             <Button type="text" style={{ padding: '0 10px' }}>
                                 <Space size="small">
                                     <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
-                                    <span style={{ fontWeight: 'bold' }}>Admin</span>
+                                    <span style={{ fontWeight: 'bold' }}>{username}</span> 
+                                    <Tag color="volcano" style={{ margin: 0, fontWeight: 'bold' }}>{userRole}</Tag> 
                                 </Space>
                             </Button>
                         </Dropdown>

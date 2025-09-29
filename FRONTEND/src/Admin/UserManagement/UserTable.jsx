@@ -1,19 +1,37 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Tag, Button, Input, Select, Space, Tooltip, Popconfirm, message, Typography } from 'antd'; // <-- ĐÃ THÊM Typography
+import { Table, Tag, Button, Input, Select, Space, Tooltip, Popconfirm, message, Typography } from 'antd'; 
 import { EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, WarningOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
-const { Text } = Typography; // <-- FIX LỖI: Destructure Text từ Typography
+const { Text } = Typography; 
 
 // Regex đơn giản để kiểm tra định dạng email
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Hàm hiển thị Role Tag
-const getRoleTag = (role) => {
-    if (typeof role !== 'string') return role; 
-    return <Tag color={role === 'Administrator' ? 'volcano' : 'blue'}>{role.toUpperCase()}</Tag>;
+// Danh sách Role hợp lệ cho Select Options
+const AVAILABLE_ROLES = ['Admin', 'Manager', 'Supervisor', 'User'];
+
+// Lấy cấp độ quyền hạn
+const getRoleLevel = (role) => {
+    switch (role) {
+        case 'Admin': return 0;
+        case 'Manager': return 1;
+        case 'Supervisor': return 2;
+        case 'User': return 3;
+        default: return 99;
+    }
 };
 
+// Hàm hiển thị Role Tag (Cập nhật màu sắc)
+const getRoleTag = (role) => {
+    let color = 'default';
+    if (role === 'Admin') color = 'volcano'; // Mức 0
+    else if (role === 'Manager') color = 'blue'; // Mức 1
+    else if (role === 'Supervisor') color = 'cyan'; // Mức 2
+    else if (role === 'User') color = 'green'; // Mức 3
+    
+    return <Tag color={color}>{role.toUpperCase()}</Tag>;
+};
 // Hàm hiển thị Status Tag
 const getStatusTag = (status) => {
     if (typeof status !== 'string') return status;
@@ -24,7 +42,8 @@ const UserTable = ({ data, handlers, state }) => {
     const [newRowData, setNewRowData] = useState({
         username: '',
         email: '',
-        role: 'Operator',
+        // FIX: Đổi 'Operator' thành 'User' (role hợp lệ mới)
+        role: 'User', 
         status: 'Active'
     });
     const [editingData, setEditingData] = useState({});
@@ -49,7 +68,7 @@ const UserTable = ({ data, handlers, state }) => {
     const isNewRowRecord = (record) => record.key === 'new-row';
     
     // =================================================================
-    // LOGIC VALIDATION
+    // LOGIC VALIDATION (giữ nguyên)
     // =================================================================
     const validateField = (field, value) => {
         let error = '';
@@ -86,7 +105,7 @@ const UserTable = ({ data, handlers, state }) => {
     const handleSaveNewUser = () => {
         if (runNewRowValidation(newRowData)) {
             if (handlers.saveNewUser(newRowData)) {
-                setNewRowData({ username: '', email: '', role: 'Operator', status: 'Active' });
+                setNewRowData({ username: '', email: '', role: 'User', status: 'Active' });
                 setValidationErrors({});
             }
         } else {
@@ -96,7 +115,7 @@ const UserTable = ({ data, handlers, state }) => {
 
 
     // =================================================================
-    // ĐỊNH NGHĨA CỘT
+    // ĐỊNH NGHĨA CỘT (CẬP NHẬT)
     // =================================================================
     const columns = useMemo(() => ([
         { 
@@ -132,7 +151,6 @@ const UserTable = ({ data, handlers, state }) => {
             key: 'email',
             render: (text, record) => {
                 if (isNewRowRecord(record)) {
-                    // FIX: Sử dụng Text component đã được import
                     return (
                         <Space direction="vertical" style={{ width: '100%' }} size={2}>
                             <Input 
@@ -157,12 +175,12 @@ const UserTable = ({ data, handlers, state }) => {
             dataIndex: 'role', 
             key: 'role', 
             render: (role, record) => {
+                const roleOptions = AVAILABLE_ROLES.map(r => <Option key={r} value={r}>{r}</Option>);
+                
                 if (isNewRowRecord(record)) {
                     return (
                         <Select value={newRowData.role} style={{ width: 120 }} onChange={(value) => handleNewRowChange('role', value)}>
-                            <Option value="Administrator">Administrator</Option>
-                            <Option value="Supervisor">Supervisor</Option>
-                            <Option value="Operator">Operator</Option>
+                            {roleOptions}
                         </Select>
                     );
                 }
@@ -173,14 +191,22 @@ const UserTable = ({ data, handlers, state }) => {
                             style={{ width: 120 }} 
                             onChange={(value) => handleEditChange('role', value)}
                         >
-                            <Option value="Administrator">Administrator</Option>
-                            <Option value="Supervisor">Supervisor</Option>
-                            <Option value="Operator">Operator</Option>
+                            {roleOptions}
                         </Select>
                      );
                 }
                 return getRoleTag(role);
             }
+        },
+        // CỘT MỚI: MỨC QUYỀN HẠN
+        {
+            title: 'Mức Quyền',
+            dataIndex: 'role',
+            key: 'level',
+            width: 100,
+            render: (role) => (
+                 <Tag color={getRoleLevel(role) === 0 ? 'red' : 'default'}>Mức {getRoleLevel(role)}</Tag>
+            )
         },
         { 
             title: 'Status', 
@@ -227,6 +253,7 @@ const UserTable = ({ data, handlers, state }) => {
 
                 const permissions = handlers.getPermissions(record.username);
                 const isCurrentlyEditing = isEditing(record);
+                const isDisabled = state.editingKey || state.isAdding;
 
                 // TRƯỜNG HỢP 2: DÒNG CHỈNH SỬA
                 if (isCurrentlyEditing) {
@@ -239,8 +266,6 @@ const UserTable = ({ data, handlers, state }) => {
                 }
 
                 // TRƯỜNG HỢP 3: DÒNG CỐ ĐỊNH
-                const isDisabled = state.editingKey || state.isAdding;
-
                 return (
                     <Space>
                         {/* Nút chỉnh sửa */}

@@ -1,7 +1,7 @@
 // FRONTEND/src/maintenance/SparePartsInventoryPage.jsx
 
-import React, { useState, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom'; // Thêm useLocation
 import { 
     Typography, Space, Table, Button, Tag, Modal, Form, Input, InputNumber, 
     Divider, Statistic, Row, Col, Card, Popconfirm, Select, Avatar, App, message, Popover
@@ -9,12 +9,13 @@ import {
 import { 
     PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, 
     DownloadOutlined, UploadOutlined, StockOutlined, ShopOutlined, AlertOutlined, QrcodeOutlined, PrinterOutlined, WarningOutlined, ThunderboltOutlined,
-    LinkOutlined // <--- Đã thêm LinkOutlined
+    LinkOutlined 
 } from '@ant-design/icons';
 import { useSpareParts, PART_CATEGORIES } from './useSpareParts';
 import dayjs from 'dayjs';
 import { faker } from '@faker-js/faker'; 
 import { QRCodeCanvas as QRCode } from 'qrcode.react'; 
+import { useAuth } from '../context/AuthContext'; // Import useAuth
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -59,23 +60,47 @@ const mockExportToCSV = (data, filename = 'spare_parts_inventory.csv') => {
     }
 };
 
-// Component QR Code In ấn Tùy chỉnh (ĐÃ SỬA LINK)
+// Component QR Code In ấn Tùy chỉnh
 const PrintableQRCode = ({ part }) => {
-    // URL Mock cho QR Code: Chứa QR ID của vật tư
-    const qrData = `SP-INVENTORY:${part.qrCodeId}`; 
+    // URL MÃ HÓA: Dùng localhost và ID vật tư
+    const qrData = `http://localhost:5173/maintenance/inventory?scanId=${part.qrCodeId}`; 
 
-    // Sử dụng ref để in ấn
     const printRef = useRef();
 
     const handlePrint = () => {
         const printContent = printRef.current;
         const printWindow = window.open('', '', 'height=600,width=800');
-        printWindow.document.write('<html><head><title>In Mã QR</title>');
-        // Thêm CSS in ấn cơ bản
-        printWindow.document.write('<style>@media print { body { margin: 0; } .print-area { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; border: 1px solid black; width: 300px; height: 350px; font-family: Arial, sans-serif; } .header { font-size: 14px; font-weight: bold; margin-bottom: 10px; } .info { font-size: 10px; margin-top: 5px; } }</style>');
-        printWindow.document.write('</head><body>');
-        printWindow.document.write(printContent.innerHTML);
-        printWindow.document.write('</body></html>');
+        
+        const printStyles = `
+            @media print { 
+                body { margin: 0; } 
+                .print-area { 
+                    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                    padding: 20px; border: 1px solid black; width: 300px; height: 350px; 
+                    font-family: Arial, sans-serif; margin: 20px auto;
+                }
+                .header { font-size: 16px; font-weight: bold; margin-bottom: 10px; } 
+                .info { font-size: 12px; margin-top: 5px; }
+                .ant-btn { display: none; } 
+                .ant-tag { display: inline; color: #333; font-weight: bold; } 
+            }
+        `;
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>In Mã QR</title>
+                    <style>${printStyles}</style>
+                </head>
+                <body>
+                    <div id="print-area-content"></div>
+                </body>
+            </html>
+        `);
+        
+        const clonedContent = printContent.cloneNode(true);
+        printWindow.document.getElementById('print-area-content').appendChild(clonedContent);
+        
         printWindow.document.close();
         printWindow.print();
     };
@@ -102,11 +127,10 @@ const PrintableQRCode = ({ part }) => {
                         In Mã QR này
                     </Button>
                 )}
-                {/* NÚT XEM CHI TIẾT VẬT TƯ (ĐÃ SỬA LINK) */}
+                {/* NÚT XEM TRANG QUẢN LÝ KHO */}
                 <Button 
                     icon={<LinkOutlined />} 
                     type="dashed" 
-                    // Dẫn đến trang quản lý kho vật tư
                     onClick={() => window.open(`/maintenance/inventory`, '_blank')}
                 >
                     Xem Trang Quản lý Kho
@@ -116,7 +140,7 @@ const PrintableQRCode = ({ part }) => {
     );
 };
 
-// COMPONENT MỚI: Image Preview trên hover (giữ nguyên)
+// Component Image Preview trên hover
 const ImageZoomPreview = ({ url, name }) => (
     <Popover
         content={<img src={url} alt={name} style={{ width: 200, height: 'auto', borderRadius: 4 }} />}
@@ -124,7 +148,6 @@ const ImageZoomPreview = ({ url, name }) => (
         trigger="hover"
         placement="right"
     >
-        {/* Sử dụng Avatar cho hình ảnh nhỏ trong bảng */}
         <Avatar src={url} shape="square" size={40} icon={<ShopOutlined />} />
     </Popover>
 );
@@ -132,7 +155,11 @@ const ImageZoomPreview = ({ url, name }) => (
 
 const SparePartsInventoryPageContent = () => {
     const { parts, savePart, deletePart, mockImport, summary, getPartByQrId, PART_CATEGORIES, generateQrCode } = useSpareParts();
+    const { roleLevel } = useAuth(); 
     const navigate = useNavigate();
+    const location = useLocation(); 
+    const { message: messageApi } = App.useApp();
+    
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isQRModalVisible, setIsQRModalVisible] = useState(false);
     const [currentPart, setCurrentPart] = useState(null);
@@ -142,14 +169,59 @@ const SparePartsInventoryPageContent = () => {
     const [isScannerActive, setIsScannerActive] = useState(false); 
     const [scannedQrId, setScannedQrId] = useState(''); 
     
-    // HÀM MỚI: Xử lý tạo QR Code (giữ nguyên)
+    // Phân quyền: Admin (0) và User (3) có quyền chỉnh sửa/thêm/xóa
+    const canEdit = roleLevel === 0 || roleLevel === 3; 
+    const isReadOnly = !canEdit;
+
+    // HÀM: Xử lý tạo QR Code (giữ nguyên)
     const handleCreateQrCode = (record) => {
         generateQrCode(record.id, record.name);
     };
 
+    // --- HÀM CŨ: Hiển thị Modal thông tin real-time (Sau khi Quét) ---
+    const showRealTimeModal = useCallback((id) => {
+        const partInfo = getPartByQrId(id);
+        
+        if (!partInfo) {
+            Modal.error({ title: "Lỗi Tra Cứu", content: "Mã QR không hợp lệ hoặc vật tư không tồn tại." });
+            return;
+        }
+
+        Modal.info({
+            title: `Thông tin Vật tư (REAL-TIME): ${partInfo.id}`,
+            maskClosable: true,
+            // Đã loại bỏ nút link để hiển thị thông tin trực tiếp
+            content: (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                    <Text strong>Tên Vật tư: {partInfo.name}</Text>
+                    <Text>Loại Vật tư: <Tag color="blue">{partInfo.category}</Tag></Text>
+                    <Text>Số lượng Tồn kho: <Text strong>{partInfo.stock} {partInfo.unit}</Text></Text>
+                    <Text>Vị trí Kho: {partInfo.location}</Text>
+                    <Text>Trạng thái Tồn: <Tag color={partInfo.color} style={{ fontWeight: 'bold' }}>{partInfo.status.toUpperCase()}</Tag></Text>
+                    <Divider style={{ margin: '8px 0' }} />
+                    <Text type="secondary">Mô tả: {partInfo.description}</Text>
+                </Space>
+            ),
+        });
+    }, [getPartByQrId]);
+
+    // EFFECT: BẮT LỰC QUÉT MÃ QR TỪ URL (Mobile/Desktop)
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const scanId = params.get('scanId');
+
+        if (scanId) {
+            showRealTimeModal(scanId);
+            
+            // Xóa query param khỏi URL để không mở lại modal khi refresh
+            navigate(location.pathname, { replace: true });
+        }
+    }, [location.search, navigate, showRealTimeModal]);
+
 
     // --- Logic CRUD & Modal (giữ nguyên) ---
     const handleAdd = () => {
+        if (isReadOnly) return messageApi.warning("Bạn không có quyền thêm vật tư.");
         setCurrentPart(null);
         form.resetFields();
         form.setFieldsValue({ category: PART_CATEGORIES[0] || 'Vòng bi/Bạc đạn' });
@@ -157,6 +229,7 @@ const SparePartsInventoryPageContent = () => {
     };
 
     const handleEdit = (record) => {
+        if (isReadOnly) return messageApi.warning("Bạn không có quyền chỉnh sửa vật tư.");
         setCurrentPart(record);
         form.setFieldsValue(record);
         setIsModalVisible(true);
@@ -167,62 +240,30 @@ const SparePartsInventoryPageContent = () => {
         setIsModalVisible(false);
     };
     
-    // --- Logic Export/Scan (CẬP NHẬT MODAL SAU KHI QUÉT) ---
+    // --- Logic Export/Scan (giữ nguyên) ---
     const handleExport = () => {
         mockExportToCSV(parts, `kho_vat_tu_${dayjs().format('YYYYMMDD')}.csv`);
-        message.success('Đã xuất dữ liệu kho vật tư thành công!');
+        messageApi.success('Đã xuất dữ liệu kho vật tư thành công!');
     };
     
     const handleScan = () => {
         setIsScannerActive(true);
-        // Mô phỏng quá trình quét và nhận QR ID sau 2 giây
         setTimeout(() => {
             setIsScannerActive(false);
             
-            // Chỉ quét các vật tư ĐÃ CÓ QR ID
             const partsWithQr = parts.filter(p => p.qrCodeId);
             if (partsWithQr.length === 0) {
-                 message.error('Không có vật tư nào có mã QR để quét (Mock).');
+                 messageApi.error('Không có vật tư nào có mã QR để quét (Mock).');
                  return;
             }
             
             const mockQrId = partsWithQr[faker.number.int({ min: 0, max: partsWithQr.length - 1 })].qrCodeId;
-            setScannedQrId(mockQrId);
-            
-            const partInfo = getPartByQrId(mockQrId);
-            if (partInfo) {
-                // HIỂN THỊ ĐẦY ĐỦ THÔNG TIN REAL-TIME SAU KHI LOOKUP
-                Modal.info({
-                    title: `Thông tin Vật tư (Real-time): ${partInfo.id}`,
-                    content: (
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                            <Text strong>Tên Vật tư: {partInfo.name}</Text>
-                            <Text>Loại Vật tư: <Tag color="blue">{partInfo.category}</Tag></Text>
-                            <Text>Số lượng Tồn kho: <Text strong>{partInfo.stock} {partInfo.unit}</Text></Text>
-                            <Text>Vị trí Kho: {partInfo.location}</Text>
-                            <Text>Trạng thái Tồn: <Tag color={partInfo.color}>{partInfo.status.toUpperCase()}</Tag></Text>
-                            <Divider style={{ margin: '8px 0' }} />
-                            <Text type="secondary">Mô tả: {partInfo.description}</Text>
-                            {/* NÚT XEM CHI TIẾT VẬT TƯ (ĐÃ SỬA LINK) */}
-                            <Button 
-                                icon={<LinkOutlined />} 
-                                type="link" 
-                                // Dẫn đến trang quản lý kho vật tư
-                                onClick={() => window.open(`/maintenance/inventory`, '_blank')}
-                            >
-                                Xem Trang Quản lý Kho
-                            </Button>
-                        </Space>
-                    ),
-                });
-            } else {
-                 message.error('Mã QR không hợp lệ hoặc vật tư không tồn tại trong hệ thống.');
-            }
+            showRealTimeModal(mockQrId);
+
         }, 2000);
     };
 
 
-    // --- Logic Hiển thị QR Code In ấn (giữ nguyên) ---
     const handleShowQR = (record) => {
         setQrPart(record);
         setIsQRModalVisible(true);
@@ -241,7 +282,7 @@ const SparePartsInventoryPageContent = () => {
     }, [parts, filters]);
 
 
-    // --- Cấu hình Bảng (giữ nguyên) ---
+    // --- Cấu hình Bảng (Áp dụng phân quyền) ---
     const columns = [
         { 
             title: 'QR Code', 
@@ -255,6 +296,7 @@ const SparePartsInventoryPageContent = () => {
                         size="small" 
                         onClick={() => handleShowQR(record)}
                         type="default"
+                        disabled={isReadOnly}
                     >
                         In QR ({record.id})
                     </Button>
@@ -264,12 +306,14 @@ const SparePartsInventoryPageContent = () => {
                         onConfirm={() => handleCreateQrCode(record)}
                         okText="Tạo QR"
                         cancelText="Hủy"
+                        disabled={isReadOnly}
                     >
                          <Button 
                             icon={<ThunderboltOutlined />} 
                             size="small" 
                             type="dashed"
                             danger
+                            disabled={isReadOnly}
                         >
                             Tạo QR
                         </Button>
@@ -326,15 +370,16 @@ const SparePartsInventoryPageContent = () => {
             render: (_, record) => (
                 <Space size="small">
                     {/* CRUD: Chỉnh sửa */}
-                    <Button icon={<EditOutlined />} size="small" onClick={() => handleEdit(record)}>Sửa</Button>
+                    <Button icon={<EditOutlined />} size="small" onClick={() => handleEdit(record)} disabled={isReadOnly}>Sửa</Button>
                     {/* CRUD: Xóa */}
                     <Popconfirm
                         title="Bạn chắc chắn muốn xóa vật tư này?"
                         onConfirm={() => deletePart(record.id)}
                         okText="Xóa"
                         cancelText="Hủy"
+                        disabled={isReadOnly}
                     >
-                        <Button icon={<DeleteOutlined />} size="small" danger>Xóa</Button>
+                        <Button icon={<DeleteOutlined />} size="small" danger disabled={isReadOnly}>Xóa</Button>
                     </Popconfirm>
                 </Space>
             ),
@@ -389,7 +434,7 @@ const SparePartsInventoryPageContent = () => {
 
             <Divider orientation="left">Danh sách Vật tư & Thao tác</Divider>
 
-            {/* Control Panel: BỘ LỌC (giữ nguyên) */}
+            {/* Control Panel: BỘ LỌC */}
             <Card className="tw-shadow-md">
                 <Row gutter={[16, 16]} align="middle">
                     <Col span={6}>
@@ -431,6 +476,7 @@ const SparePartsInventoryPageContent = () => {
                             <Button 
                                 icon={<UploadOutlined />} 
                                 onClick={mockImport}
+                                disabled={isReadOnly}
                             >
                                 Nhập Excel (Mock)
                             </Button>
@@ -444,6 +490,7 @@ const SparePartsInventoryPageContent = () => {
                                 type="primary" 
                                 icon={<PlusOutlined />} 
                                 onClick={handleAdd}
+                                disabled={isReadOnly}
                             >
                                 Thêm Vật tư Mới
                             </Button>

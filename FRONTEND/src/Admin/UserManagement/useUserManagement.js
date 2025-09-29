@@ -3,13 +3,16 @@ import { message } from 'antd';
 import apiFetch from '../../services/apiService';
 // Dữ liệu mock ban đầu
 const initialUsers = [
-    { key: '1', username: 'admin_root', role: 'Administrator', email: 'admin@factory.com', status: 'Active' },
-    { key: '2', username: 'supervisor_a', role: 'Supervisor', email: 'supervisor@factory.com', status: 'Active' },
-    { key: '3', username: 'operator_line_1', role: 'Operator', email: 'op1@factory.com', status: 'Active' },
-    { key: '4', username: 'john_doe', role: 'Operator', email: 'john@factory.com', status: 'Inactive' },
+    { key: '1', username: 'admin_root', role: 'Admin', email: 'admin@factory.com', status: 'Active' },
+    { key: '2', username: 'manager_a', role: 'Manager', email: 'manager@factory.com', status: 'Active' },
+    { key: '3', username: 'supervisor_b', role: 'Supervisor', email: 'supervisor@factory.com', status: 'Active' },
+    { key: '4', username: 'user_line_c', role: 'User', email: 'user@factory.com', status: 'Active' },
+    { key: '5', username: 'john_doe', role: 'User', email: 'john@factory.com', status: 'Inactive' },
 ];
 
 const SUPER_ADMIN_USERNAME = 'admin_root';
+const ADMIN_ROLE = 'Admin';
+const VALID_ROLES = ['Admin', 'Manager', 'Supervisor', 'User'];
 
 export const useUserManagement = (userRole) => {
     const [users, setUsers] = useState(initialUsers);
@@ -111,11 +114,14 @@ export const useUserManagement = (userRole) => {
     // 5. LOGIC PHÂN QUYỀN
     // =================================================================
     const getPermissions = useCallback((recordUsername) => {
-        const isLoggedAdmin = userRole === 'Admin' || userRole === 'Administrator';
-        const isProtectedAdmin = recordUsername === SUPER_ADMIN_USERNAME;
+        // Chỉ Admin (Level 0) mới có quyền chỉnh sửa/xóa tài khoản
+        const isLoggedAdmin = userRole === ADMIN_ROLE;
+        const isProtectedAdmin = recordUsername === SUPER_ADMIN_USERNAME; // Không thể xóa tài khoản root
         
         return {
+            // Chỉ Admin mới được chỉnh sửa bất kỳ tài khoản nào
             canEdit: isLoggedAdmin, 
+            // Chỉ Admin và không phải tài khoản root mới được xóa
             canDelete: isLoggedAdmin && !isProtectedAdmin, 
             isProtectedAdmin,
         };
@@ -134,6 +140,7 @@ export const useUserManagement = (userRole) => {
         deleteUser,
         handleFinalConfirm,
         getPermissions,
-        SUPER_ADMIN_USERNAME
+        SUPER_ADMIN_USERNAME,
+        VALID_ROLES
     };
 };
