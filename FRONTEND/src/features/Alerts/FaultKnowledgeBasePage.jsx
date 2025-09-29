@@ -1,199 +1,183 @@
 // FRONTEND/src/features/Alerts/FaultKnowledgeBasePage.jsx
 
-import React, { useMemo, useState } from 'react';
-import { Typography, Space, Table, Tag, Input, Select, Divider, Card, Popover, Button, Row, Col } from 'antd';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
-    BookOutlined, SearchOutlined, ToolOutlined, TagsOutlined, InfoCircleOutlined,
-    CheckCircleOutlined
-} from '@ant-design/icons';
-import { useAlertManagement, FAULT_CATALOG } from '../../hooks/useAlertManagement';
+    // FIX: ĐÃ THÊM Descriptions vào import
+    Typography, Space, Table, Tag, Input, Row, Col, Select, Divider, Modal, Card, Statistic, Button, Descriptions 
+} from 'antd';
+import { BookOutlined, AlertOutlined, TagOutlined } from '@ant-design/icons';
+import { useAlertManagement } from '../../hooks/useAlertManagement'; 
+import { useFaultCatalog } from '../../hooks/useFaultCatalog'; 
 import dayjs from 'dayjs';
+import PermissionGuard from '../../components/PermissionGuard';
 
-const { Title, Text } = Typography;
+const { Title, Text, Link } = Typography;
 const { Option } = Select;
 
-// Component chính
+// Hạn chế quyền truy cập trang RCA Knowledge Base (chỉ cho phép đến cấp Supervisor)
+const REQUIRED_LEVEL = 2; 
+
 const FaultKnowledgeBasePage = () => {
-    // Sử dụng hook quản lý Alert
-    const { alerts, MACHINE_IDS } = useAlertManagement();
+    // Lấy FAULT_CATALOG động từ hook useFaultCatalog
+    const { FAULT_CATALOG } = useFaultCatalog();
+    const { alerts } = useAlertManagement();
     
-    // State quản lý các bộ lọc
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedFaultCode, setSelectedFaultCode] = useState(null);
-    const [selectedMachine, setSelectedMachine] = useState(null);
+    const [filters, setFilters] = useState({ machineId: null, faultCode: null });
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedRCA, setSelectedRCA] = useState(null);
 
-    // Dữ liệu chỉ lấy những alert đã được giải quyết (Resolved)
+    // Lọc Alerts đã được Giải quyết (Resolved) để xây dựng Kho tri thức
     const resolvedAlerts = useMemo(() => {
-        return alerts
-            .filter(a => a.status === 'Resolved')
-            .map(a => {
-                let resolvedData = { cause: 'Không có', action: 'Không có' };
-                try {
-                    resolvedData = JSON.parse(a.resolvedInfo);
-                } catch (e) {
-                    // console.error("Error parsing resolvedInfo:", e);
+        const uniqueFaults = new Map();
+
+        // Đảm bảo alerts là một mảng trước khi gọi filter
+        (alerts || []).filter(a => a.status === 'Resolved' && a.resolvedInfo).forEach(alert => {
+            try {
+                const info = JSON.parse(alert.resolvedInfo);
+                const faultCode = info.faultCode;
+                
+                // Sử dụng Mã Lỗi làm khóa duy nhất cho kho tri thức
+                if (faultCode && !uniqueFaults.has(faultCode)) {
+                    // Lấy mô tả chi tiết từ danh mục lỗi động
+                    const faultDetail = (FAULT_CATALOG || []).find(f => f.code === faultCode);
+
+                    uniqueFaults.set(faultCode, {
+                        id: faultCode,
+                        machineId: alert.machineId,
+                        faultCode: faultCode,
+                        // Thêm chi tiết RCA
+                        rootCause: info.cause, 
+                        actionTaken: info.action,
+                        // Thêm mô tả và hạng mục từ Catalog
+                        description: faultDetail?.description || `Mã lỗi tùy chỉnh: ${faultCode}`,
+                        category: faultDetail?.category || 'Tùy chỉnh',
+                        lastResolved: dayjs(alert.timestamp).format('YYYY-MM-DD HH:mm'),
+                        // Tính toán số lần lỗi lặp lại (đếm tất cả alerts có mã lỗi này)
+                        occurrence: (alerts || []).filter(a => a.faultCode === faultCode).length
+                    });
+                } else if (faultCode && uniqueFaults.has(faultCode)) {
+                    // Cập nhật số lần lặp lại và ngày giải quyết gần nhất
+                     const existing = uniqueFaults.get(faultCode);
+                     existing.occurrence += 1;
+                     existing.lastResolved = dayjs(alert.timestamp).format('YYYY-MM-DD HH:mm');
                 }
-                return { ...a, resolvedData };
-            });
-    }, [alerts]);
-
-    // Áp dụng bộ lọc cho dữ liệu hiển thị
-    const filteredData = useMemo(() => {
-        let data = resolvedAlerts;
+            } catch (e) {
+                console.error("Error parsing resolvedInfo:", e);
+            }
+        });
         
-        // Lọc theo từ khóa tìm kiếm (message, cause, action)
-        if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
-            data = data.filter(item => 
-                item.message.toLowerCase().includes(lowerSearch) ||
-                item.resolvedData.cause.toLowerCase().includes(lowerSearch) ||
-                item.resolvedData.action.toLowerCase().includes(lowerSearch)
-            );
-        }
+        // Áp dụng bộ lọc
+        return Array.from(uniqueFaults.values()).filter(rca => {
+            let match = true;
+            if (filters.machineId && rca.machineId !== filters.machineId) match = false;
+            if (filters.faultCode && rca.faultCode !== filters.faultCode) match = false;
+            return match;
+        });
 
-        // Lọc theo Mã Lỗi
-        if (selectedFaultCode) {
-            data = data.filter(item => item.faultCode === selectedFaultCode);
-        }
-        
-        // Lọc theo Mã Máy
-        if (selectedMachine) {
-            data = data.filter(item => item.machineId === selectedMachine);
-        }
+    }, [alerts, filters, FAULT_CATALOG]);
 
-        return data;
-    }, [resolvedAlerts, searchTerm, selectedFaultCode, selectedMachine]);
+
+    const handleShowDetails = (rca) => {
+        setSelectedRCA(rca);
+        setIsModalVisible(true);
+    };
 
     // Định nghĩa cột bảng
-    const columns = useMemo(() => ([
-        { 
-            title: 'Mã Lỗi', 
-            dataIndex: 'faultCode', 
-            key: 'faultCode',
-            width: 120,
-            render: (code) => <Tag color="geekblue" icon={<TagsOutlined />}>{code}</Tag>
-        },
-        { title: 'Mã Máy', dataIndex: 'machineId', key: 'machineId', width: 100 },
-        { 
-            title: 'Mô tả Sự cố', 
-            dataIndex: 'message', 
-            key: 'message', 
-            width: 250, 
-            ellipsis: true 
-        },
-        { 
-            title: 'Nguyên nhân (Gốc rễ)', 
-            dataIndex: ['resolvedData', 'cause'], 
-            key: 'cause', 
-            width: 250, 
-            ellipsis: true 
-        },
-        { 
-            title: 'Thời gian Khắc phục', 
-            dataIndex: 'timestamp', 
-            key: 'timestamp', 
-            width: 180,
-            render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm')
-        },
-        { 
-            title: 'Người giải quyết', 
-            dataIndex: 'acknowledgedBy', 
-            key: 'acknowledgedBy',
-            width: 120,
-        },
+    const columns = [
+        { title: 'Mã Lỗi', dataIndex: 'faultCode', key: 'faultCode', width: 120, fixed: 'left', render: (text) => <Tag color="geekblue" style={{ fontWeight: 'bold' }}>{text}</Tag> },
+        { title: 'Mô tả Lỗi', dataIndex: 'description', key: 'description', ellipsis: true },
+        { title: 'Hạng mục', dataIndex: 'category', key: 'category', width: 130, render: (text) => <Tag color="blue">{text}</Tag> },
+        { title: 'Nguyên nhân Gốc rễ', dataIndex: 'rootCause', key: 'rootCause', ellipsis: true },
+        { title: 'Số lần Lặp lại', dataIndex: 'occurrence', key: 'occurrence', width: 100, sorter: (a, b) => a.occurrence - b.occurrence },
+        { title: 'Giải quyết Gần nhất', dataIndex: 'lastResolved', key: 'lastResolved', width: 180 },
         { 
             title: 'Hành động', 
             key: 'action', 
-            width: 120,
+            width: 100, 
             fixed: 'right',
             render: (_, record) => (
-                <Popover
-                    title={<Text strong><InfoCircleOutlined /> Chi tiết Khắc phục</Text>}
-                    content={
-                        <Space direction="vertical" style={{ maxWidth: 350 }}>
-                            <Text strong><ToolOutlined /> Nguyên nhân Gốc rễ:</Text>
-                            <Text>{record.resolvedData.cause}</Text>
-                            <Divider style={{ margin: '8px 0' }} />
-                            <Text strong><CheckCircleOutlined /> Hành động Khắc phục:</Text>
-                            <Text>{record.resolvedData.action}</Text>
-                        </Space>
-                    }
-                    trigger="click"
-                >
-                    <Button size="small" icon={<InfoCircleOutlined />}>Xem chi tiết</Button>
-                </Popover>
+                <Button size="small" type="link" onClick={() => handleShowDetails(record)}>Xem chi tiết</Button>
             )
         },
-    ]), []);
-
+    ];
 
     return (
-        <Space direction="vertical" size={24} style={{ display: 'flex' }}>
-            <Title level={3}><BookOutlined /> Kho tri thức Lỗi (Knowledge Base)</Title>
-            <Text type="secondary">Tra cứu các sự cố đã được giải quyết để tìm hiểu nguyên nhân gốc rễ và hành động khắc phục đã được ghi nhận.</Text>
+        <PermissionGuard requiredLevel={REQUIRED_LEVEL}>
+            <Space direction="vertical" size={24} style={{ display: 'flex' }}>
+                <Title level={3}><BookOutlined /> Kho Tri Thức Lỗi (Root Cause Analysis - RCA)</Title>
+                <Text type="secondary">
+                    Danh mục này tổng hợp các lỗi đã được giải quyết, cung cấp nguyên nhân gốc rễ và hành động khắc phục đã được xác minh.
+                </Text>
 
-            <Divider orientation="left">Bộ lọc & Tìm kiếm (Trong {resolvedAlerts.length} bản ghi)</Divider>
-            
-            {/* Filter Panel */}
-            <Card className="tw-shadow-lg">
-                <Row gutter={[16, 16]} align="middle">
-                    <Col span={8}>
-                        <label className="tw-block tw-mb-1 tw-text-sm tw-font-medium">Tìm kiếm Tự do (Message, Nguyên nhân, Khắc phục):</label>
-                        <Input 
-                            placeholder="Nhập từ khóa tìm kiếm" 
-                            prefix={<SearchOutlined />}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            allowClear
-                        />
-                    </Col>
-                    <Col span={6}>
-                        <label className="tw-block tw-mb-1 tw-text-sm tw-font-medium">Lọc theo Mã Lỗi:</label>
-                        <Select 
-                            placeholder="Chọn mã lỗi" 
-                            allowClear 
-                            showSearch 
-                            style={{ width: '100%' }}
-                            onChange={setSelectedFaultCode}
-                            optionFilterProp="children"
-                        >
-                            {FAULT_CATALOG.map(fault => (
-                                <Option key={fault.code} value={fault.code}>
-                                    <Tag color="geekblue">{fault.code}</Tag> {fault.description}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Col>
-                    <Col span={6}>
-                        <label className="tw-block tw-mb-1 tw-text-sm tw-font-medium">Lọc theo Mã Máy:</label>
-                        <Select 
-                            placeholder="Chọn máy" 
-                            allowClear 
-                            showSearch 
-                            style={{ width: '100%' }}
-                            onChange={setSelectedMachine}
-                        >
-                            {MACHINE_IDS.map(id => <Option key={id} value={id}>{id}</Option>)}
-                        </Select>
-                    </Col>
-                    <Col span={4} style={{ textAlign: 'right' }}>
-                        <Text strong className="tw-text-lg">Kết quả: {filteredData.length} bản ghi</Text>
-                    </Col>
-                </Row>
-            </Card>
+                <Card className="tw-shadow-md">
+                    <Row gutter={16}>
+                        <Col span={6}>
+                            <Select
+                                placeholder="Lọc theo Mã Máy"
+                                allowClear
+                                style={{ width: '100%' }}
+                                onChange={(value) => setFilters(f => ({ ...f, machineId: value }))}
+                            >
+                                {['M-CNC-101', 'M-LASER-102', 'M-PRESS-103', 'M-ROBOT-104'].map(id => <Option key={id} value={id}>{id}</Option>)}
+                            </Select>
+                        </Col>
+                        <Col span={6}>
+                            <Select
+                                placeholder="Lọc theo Mã Lỗi"
+                                allowClear
+                                showSearch
+                                style={{ width: '100%' }}
+                                onChange={(value) => setFilters(f => ({ ...f, faultCode: value }))}
+                            >
+                                {/* SỬ DỤNG DANH MỤC LỖI TỰ ĐỘNG */}
+                                {(FAULT_CATALOG || []).map(f => <Option key={f.code} value={f.code}>{f.code} - {f.description}</Option>)}
+                            </Select>
+                        </Col>
+                        <Col span={6}>
+                             <Statistic title="Số lỗi đã ghi nhận RCA" value={resolvedAlerts.length} prefix={<TagOutlined />} />
+                        </Col>
+                        <Col span={6}>
+                             <Link href='/alerts/fault-management'>
+                                 <Button icon={<TagOutlined />} type="default">
+                                    Quản lý Danh mục Mã Lỗi
+                                 </Button>
+                             </Link>
+                        </Col>
+                    </Row>
+                </Card>
 
-            {/* Bảng Tri thức */}
-            <Table
-                columns={columns}
-                dataSource={filteredData}
-                rowKey="id"
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: 1000 }}
-                bordered
-                size="middle"
-                className="tw-shadow-xl"
-            />
-        </Space>
+                <Table
+                    columns={columns}
+                    dataSource={resolvedAlerts}
+                    rowKey="id"
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 'max-content' }}
+                    bordered
+                />
+
+                {/* Modal Chi tiết RCA */}
+                <Modal
+                    title={`Chi tiết RCA: ${selectedRCA?.faultCode}`}
+                    open={isModalVisible}
+                    onCancel={() => setIsModalVisible(false)}
+                    footer={<Button onClick={() => setIsModalVisible(false)}>Đóng</Button>}
+                >
+                    <Space direction="vertical" style={{ display: 'flex' }}>
+                        <Descriptions bordered size="small" column={1}>
+                             <Descriptions.Item label="Mô tả Lỗi">{selectedRCA?.description}</Descriptions.Item>
+                             <Descriptions.Item label="Hạng mục">{selectedRCA?.category}</Descriptions.Item>
+                             <Descriptions.Item label="Máy liên quan">{selectedRCA?.machineId}</Descriptions.Item>
+                             <Descriptions.Item label="Số lần Lặp lại">{selectedRCA?.occurrence}</Descriptions.Item>
+                        </Descriptions>
+                         <Divider orientation="left">Nguyên nhân Gốc rễ & Khắc phục</Divider>
+                         <Text strong>Nguyên nhân Gốc rễ:</Text>
+                         <Text>{selectedRCA?.rootCause}</Text>
+                         <Text strong className='tw-mt-2'>Hành động Khắc phục:</Text>
+                         <Text>{selectedRCA?.actionTaken}</Text>
+                    </Space>
+                </Modal>
+            </Space>
+        </PermissionGuard>
     );
 };
 

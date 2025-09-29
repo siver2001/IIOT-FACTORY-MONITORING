@@ -4,12 +4,12 @@ import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
     Typography, Tabs, Card, Descriptions, Tag, Row, Col, Divider, Space, Table, 
-    Button, Modal, Form, Input, Select, Popconfirm, Statistic
+    Button, Modal, Form, Input, Select, Popconfirm, Statistic, Upload, App
 } from 'antd';
 import { 
     DesktopOutlined, SettingOutlined, HistoryOutlined, AlertOutlined, ToolOutlined, 
     LinkOutlined, DeleteOutlined, FileTextOutlined, ClockCircleOutlined, 
-    HeartFilled, FallOutlined, PlusOutlined, ThunderboltOutlined
+    HeartFilled, FallOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -21,15 +21,17 @@ import { useWorkOrder } from './useWorkOrder';
 import { useDocumentManagement } from '../hooks/useDocumentManagement';
 import { useRealTimeData } from '../hooks/useRealTimeData'; 
 
-// Import Component FTA
+// Import Component FTA & Header
 import FailureTreeAnalysis from './FailureTreeAnalysis';
+import PageHeaderWithBreadcrumb from '../components/PageHeaderWithBreadcrumb';
+
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 
-const MachineProfilePage = () => {
-    // Lấy ID máy từ URL. Mặc định là M-CNC-101 cho mock
+const MachineProfilePageContent = () => {
+    const { message } = App.useApp();
     const { id } = useParams();
     const machineId = id || 'M-CNC-101'; 
     
@@ -38,29 +40,56 @@ const MachineProfilePage = () => {
     const { historyData } = useOperationHistory();
     const { alerts } = useAlertManagement();
     const { workOrders } = useWorkOrder();
-    const { getDocumentsByMachine, addDocument, deleteDocument } = useDocumentManagement();
+    const { getDocumentsByMachine, addDocument, deleteDocument } = useDocumentManagement(); 
     const liveData = useRealTimeData(); 
 
-    // Lọc dữ liệu
+    // Lọc dữ liệu (Đã có logic phòng vệ || [])
     const machineAsset = useMemo(() => assets.find(a => a.id === machineId), [assets, machineId]);
-    const machineHistory = useMemo(() => historyData.filter(h => h.machineId === machineId), [historyData, machineId]);
-    const machineAlerts = useMemo(() => alerts.filter(a => a.machineId === machineId), [alerts, machineId]);
-    const machineWOs = useMemo(() => workOrders.filter(wo => wo.machineCode === machineId), [workOrders, machineId]);
-    const machineDocs = useMemo(() => getDocumentsByMachine(machineId), [getDocumentsByMachine, machineId]);
+    const machineHistory = useMemo(() => (historyData || []).filter(h => h.machineId === machineId), [historyData, machineId]);
+    const machineAlerts = useMemo(() => (alerts || []).filter(a => a.machineId === machineId), [alerts, machineId]);
+    const machineWOs = useMemo(() => (workOrders || []).filter(wo => wo.machineCode === machineId), [workOrders, machineId]);
+    const machineDocs = useMemo(() => getDocumentsByMachine(machineId), [getDocumentsByMachine, machineId]); 
 
-    // Lấy RUL Mock (tạm thời lấy RUL chung, trong thực tế cần RUL theo từng máy)
+    // Lấy RUL Mock
     const mockRUL = liveData.RUL; 
     const mockHealthScore = liveData.healthScore;
     const isRULCritical = mockRUL < 1000;
 
     const [isDocModalVisible, setIsDocModalVisible] = useState(false);
     const [form] = Form.useForm();
+    const [uploadFile, setUploadFile] = useState(null); // State để giữ file mock
     
     if (!machineAsset) {
         return <Title level={4}>Không tìm thấy hồ sơ máy cho ID: {machineId}</Title>;
     }
 
-    // --- Cấu hình Bảng (giữ nguyên) ---
+    // --- Logic Tải lên Tài liệu ---
+    const handleBeforeUpload = (file) => {
+        setUploadFile(file); // Lưu tệp vào state (mock)
+        return false; // Ngăn chặn việc tải lên mặc định của Ant Design
+    };
+
+    const handleAddDocument = (values) => {
+        if (!uploadFile) {
+            message.error('Vui lòng chọn tệp để tải lên.');
+            return;
+        }
+        
+        // Gọi hàm mock addDocument với metadata file
+        addDocument({ 
+            ...values, 
+            name: uploadFile.name, // Lấy tên file thực tế
+            machineId: machineId, 
+            uploadedBy: 'admin_factory' 
+        });
+        
+        // Reset trạng thái
+        setIsDocModalVisible(false);
+        setUploadFile(null); 
+        form.resetFields();
+    };
+
+    // --- Cấu hình Bảng ---
     const historyColumns = [
         { title: 'Thời gian', dataIndex: 'timestamp', key: 'timestamp', render: (t) => dayjs(t).format('YYYY-MM-DD HH:mm:ss') },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (s, r) => <Tag color={r.color}>{s}</Tag> },
@@ -107,13 +136,7 @@ const MachineProfilePage = () => {
         },
     ];
     
-    // --- Logic Tài liệu ---
-    const handleAddDocument = (values) => {
-        addDocument({ ...values, machineId: machineId, uploadedBy: 'admin_factory' });
-        setIsDocModalVisible(false);
-    };
-
-    // ĐỊNH NGHĨA MẢNG ITEMS CHO TABS (Thay thế cho Tabs.TabPane)
+    // ĐỊNH NGHĨA MẢNG ITEMS CHO TABS
     const tabItems = [
         {
             key: '1',
@@ -158,13 +181,11 @@ const MachineProfilePage = () => {
             )
         },
         {
-            // TAB PHÂN TÍCH CÂY LỖI MOCK
             key: '4',
             label: <Space><ThunderboltOutlined /> Phân tích Cây Lỗi (Mock)</Space>,
-            children: <FailureTreeAnalysis machineId={machineId} />
+            children: <FailureTreeAnalysis machineId={machineId} /> 
         },
         {
-            // TAB QUẢN LÝ TÀI LIỆU KỸ THUẬT
             key: '5',
             label: <Space><FileTextOutlined /> Tài liệu Kỹ thuật ({machineDocs.length})</Space>,
             children: (
@@ -189,7 +210,12 @@ const MachineProfilePage = () => {
 
     return (
         <Space direction="vertical" size={24} style={{ display: 'flex' }}>
-            <Title level={3}><DesktopOutlined /> Hồ sơ Máy Toàn diện: {machineId} ({machineAsset.name})</Title>
+            
+            {/* FIX 1: THÊM PAGE HEADER VỚI NÚT QUAY LẠI */}
+            <PageHeaderWithBreadcrumb 
+                title={`Hồ sơ Máy Toàn diện: ${machineId} (${machineAsset.name})`}
+                icon={<DesktopOutlined />}
+            />
             
             {/* KPI RUL & HEALTH SCORE */}
             <Row gutter={24}>
@@ -257,22 +283,45 @@ const MachineProfilePage = () => {
                 defaultActiveKey="1" 
                 size="large" 
                 className="tw-shadow-xl tw-bg-white tw-rounded-lg tw-p-2"
-                items={tabItems} // <--- ĐÃ SỬ DỤNG items={tabItems}
+                items={tabItems} 
             />
 
-            {/* Modal Thêm Tài liệu */}
+            {/* Modal Thêm Tài liệu (FIX 2: Tải file thay vì link) */}
             <Modal
                 title="Tải lên Tài liệu Kỹ thuật"
                 open={isDocModalVisible}
-                onCancel={() => setIsDocModalVisible(false)}
-                onOk={() => form.submit()}
-                okText="Lưu Tài liệu"
+                onCancel={() => { setIsDocModalVisible(false); setUploadFile(null); form.resetFields(); }}
+                footer={[
+                    <Button key="back" onClick={() => { setIsDocModalVisible(false); setUploadFile(null); form.resetFields(); }}>Hủy</Button>,
+                    <Button 
+                        key="submit" 
+                        type="primary" 
+                        onClick={() => form.submit()}
+                        disabled={!uploadFile} // Vô hiệu hóa nút nếu chưa chọn file
+                    >
+                        Tải lên & Lưu
+                    </Button>
+                ]}
             >
                 <Form form={form} layout="vertical" onFinish={handleAddDocument}>
-                    <Form.Item name="name" label="Tên Tài liệu" rules={[{ required: true }]}>
-                        <Input placeholder="Ví dụ: Manual Vận hành" />
+                    
+                    {/* TRƯỜNG UPLOAD FILE MOCK */}
+                    <Form.Item label={<Text strong>1. Chọn Tệp (PDF, DWG, Image)</Text>} required>
+                         <Upload 
+                            name="file"
+                            beforeUpload={handleBeforeUpload} // Ngăn tải lên thực tế
+                            onRemove={() => setUploadFile(null)}
+                            maxCount={1}
+                            fileList={uploadFile ? [{ uid: uploadFile.uid, name: uploadFile.name, status: 'done' }] : []}
+                        >
+                            <Button icon={<UploadOutlined />}>Chọn tệp từ máy tính</Button>
+                        </Upload>
+                        <Text type="secondary" className="tw-block tw-mt-1">
+                            Tên tệp sẽ được lưu: {uploadFile ? <Tag color="blue">{uploadFile.name}</Tag> : 'Chưa chọn tệp'}
+                        </Text>
                     </Form.Item>
-                    <Form.Item name="type" label="Loại Tài liệu" rules={[{ required: true }]}>
+
+                    <Form.Item name="type" label={<Text strong>2. Phân loại Tài liệu</Text>} rules={[{ required: true, message: 'Vui lòng chọn loại tài liệu' }]}>
                         <Select placeholder="Chọn loại">
                             <Option value="PDF">Sách hướng dẫn (PDF)</Option>
                             <Option value="Diagram">Sơ đồ/Bản vẽ</Option>
@@ -280,16 +329,21 @@ const MachineProfilePage = () => {
                             <Option value="Other">Khác</Option>
                         </Select>
                     </Form.Item>
-                    <Form.Item name="link" label={<Space>Đường dẫn File (URL Mock) <LinkOutlined /></Space>} rules={[{ required: true, type: 'url' }]}>
-                        <Input placeholder="Dán link PDF/Ảnh tại đây" />
-                    </Form.Item>
-                    <Form.Item label="Gắn cho Máy" initialValue={machineId}>
-                        <Input value={machineId} disabled />
+                    
+                    <Form.Item label="Gắn cho Máy" initialValue={machineId} name="machineId" hidden>
+                        <Input disabled />
                     </Form.Item>
                 </Form>
             </Modal>
         </Space>
     );
 };
+
+// Wrapper để sử dụng App context
+const MachineProfilePage = () => (
+    <App>
+        <MachineProfilePageContent />
+    </App>
+);
 
 export default MachineProfilePage;

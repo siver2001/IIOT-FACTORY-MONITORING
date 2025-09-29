@@ -1,21 +1,22 @@
 // FRONTEND/src/maintenance/SparePartsInventoryPage.jsx
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // Thêm useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     Typography, Space, Table, Button, Tag, Modal, Form, Input, InputNumber, 
-    Divider, Statistic, Row, Col, Card, Popconfirm, Select, Avatar, App, message, Popover
+    Divider, Statistic, Row, Col, Card, Popconfirm, Select, Avatar, App, Popover
 } from 'antd';
 import { 
     PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, 
-    DownloadOutlined, UploadOutlined, StockOutlined, ShopOutlined, AlertOutlined, QrcodeOutlined, PrinterOutlined, WarningOutlined, ThunderboltOutlined,
+    DownloadOutlined, StockOutlined, ShopOutlined, AlertOutlined, QrcodeOutlined, PrinterOutlined, WarningOutlined, ThunderboltOutlined,
     LinkOutlined 
 } from '@ant-design/icons';
-import { useSpareParts, PART_CATEGORIES } from './useSpareParts';
+// Đảm bảo import useSpareParts
+import { useSpareParts } from './useSpareParts'; 
 import dayjs from 'dayjs';
 import { faker } from '@faker-js/faker'; 
 import { QRCodeCanvas as QRCode } from 'qrcode.react'; 
-import { useAuth } from '../context/AuthContext'; // Import useAuth
+import { useAuth } from '../context/AuthContext'; 
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -27,7 +28,8 @@ const mockExportToCSV = (data, filename = 'spare_parts_inventory.csv') => {
         { dataIndex: 'name', title: 'Tên Vật tư' },
         { dataIndex: 'stock', title: 'Số lượng Tồn' },
         { dataIndex: 'unit', title: 'Đơn vị' },
-        { dataIndex: 'minStock', title: 'Ngưỡng Tối thiểu' },
+        { dataIndex: 'criticalThreshold', title: 'Ngưỡng Nguy hiểm' }, 
+        { dataIndex: 'lowStockThreshold', title: 'Ngưỡng Cảnh báo' }, 
         { dataIndex: 'location', title: 'Vị trí Kho' },
         { dataIndex: 'vendor', title: 'Nhà cung cấp' },
         { dataIndex: 'status', title: 'Trạng thái Tồn kho' },
@@ -47,7 +49,7 @@ const mockExportToCSV = (data, filename = 'spare_parts_inventory.csv') => {
         csv += rowData + '\n';
     });
 
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); 
+    const blob = new Blob([new UintArray([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); 
     const link = document.createElement("a");
     if (link.download !== undefined) {
         const url = URL.createObjectURL(blob);
@@ -60,7 +62,7 @@ const mockExportToCSV = (data, filename = 'spare_parts_inventory.csv') => {
     }
 };
 
-// Component QR Code In ấn Tùy chỉnh
+// Component QR Code In ấn Tùy chỉnh (Giữ nguyên)
 const PrintableQRCode = ({ part }) => {
     // URL MÃ HÓA: Dùng localhost và ID vật tư
     const qrData = `http://localhost:5173/maintenance/inventory?scanId=${part.qrCodeId}`; 
@@ -140,7 +142,7 @@ const PrintableQRCode = ({ part }) => {
     );
 };
 
-// Component Image Preview trên hover
+// Component Image Preview trên hover (Giữ nguyên)
 const ImageZoomPreview = ({ url, name }) => (
     <Popover
         content={<img src={url} alt={name} style={{ width: 200, height: 'auto', borderRadius: 4 }} />}
@@ -154,7 +156,8 @@ const ImageZoomPreview = ({ url, name }) => (
 
 
 const SparePartsInventoryPageContent = () => {
-    const { parts, savePart, deletePart, mockImport, summary, getPartByQrId, PART_CATEGORIES, generateQrCode } = useSpareParts();
+    // Đã đổi tên PART_CATEGORIES thành categories
+    const { parts, savePart, deletePart, summary, PART_CATEGORIES: categories, generateQrCode } = useSpareParts(); 
     const { roleLevel } = useAuth(); 
     const navigate = useNavigate();
     const location = useLocation(); 
@@ -166,8 +169,6 @@ const SparePartsInventoryPageContent = () => {
     const [qrPart, setQrPart] = useState(null); 
     const [form] = Form.useForm();
     const [filters, setFilters] = useState({ name: '', status: null, category: null }); 
-    const [isScannerActive, setIsScannerActive] = useState(false); 
-    const [scannedQrId, setScannedQrId] = useState(''); 
     
     // Phân quyền: Admin (0) và User (3) có quyền chỉnh sửa/thêm/xóa
     const canEdit = roleLevel === 0 || roleLevel === 3; 
@@ -178,53 +179,22 @@ const SparePartsInventoryPageContent = () => {
         generateQrCode(record.id, record.name);
     };
 
-    // --- HÀM CŨ: Hiển thị Modal thông tin real-time (Sau khi Quét) ---
-    const showRealTimeModal = useCallback((id) => {
-        const partInfo = getPartByQrId(id);
-        
-        if (!partInfo) {
-            Modal.error({ title: "Lỗi Tra Cứu", content: "Mã QR không hợp lệ hoặc vật tư không tồn tại." });
-            return;
-        }
-
-        Modal.info({
-            title: `Thông tin Vật tư (REAL-TIME): ${partInfo.id}`,
-            maskClosable: true,
-            // Đã loại bỏ nút link để hiển thị thông tin trực tiếp
-            content: (
-                <Space direction="vertical" style={{ width: '100%' }}>
-                    <Text strong>Tên Vật tư: {partInfo.name}</Text>
-                    <Text>Loại Vật tư: <Tag color="blue">{partInfo.category}</Tag></Text>
-                    <Text>Số lượng Tồn kho: <Text strong>{partInfo.stock} {partInfo.unit}</Text></Text>
-                    <Text>Vị trí Kho: {partInfo.location}</Text>
-                    <Text>Trạng thái Tồn: <Tag color={partInfo.color} style={{ fontWeight: 'bold' }}>{partInfo.status.toUpperCase()}</Tag></Text>
-                    <Divider style={{ margin: '8px 0' }} />
-                    <Text type="secondary">Mô tả: {partInfo.description}</Text>
-                </Space>
-            ),
-        });
-    }, [getPartByQrId]);
-
-    // EFFECT: BẮT LỰC QUÉT MÃ QR TỪ URL (Mobile/Desktop)
+    // EFFECT: Đã loại bỏ logic Quét QR từ URL
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const scanId = params.get('scanId');
-
-        if (scanId) {
-            showRealTimeModal(scanId);
-            
-            // Xóa query param khỏi URL để không mở lại modal khi refresh
-            navigate(location.pathname, { replace: true });
-        }
-    }, [location.search, navigate, showRealTimeModal]);
-
+        // Code đã bị xóa theo yêu cầu trước đó.
+    }, [location.search, navigate]);
 
     // --- Logic CRUD & Modal (giữ nguyên) ---
     const handleAdd = () => {
         if (isReadOnly) return messageApi.warning("Bạn không có quyền thêm vật tư.");
         setCurrentPart(null);
         form.resetFields();
-        form.setFieldsValue({ category: PART_CATEGORIES[0] || 'Vòng bi/Bạc đạn' });
+        // Cài đặt giá trị mặc định cho ngưỡng tồn kho mới
+        form.setFieldsValue({ 
+            category: categories[0] || 'Vòng bi/Bạc đạn',
+            criticalThreshold: 2, 
+            lowStockThreshold: 5,  
+        });
         setIsModalVisible(true);
     };
 
@@ -236,33 +206,16 @@ const SparePartsInventoryPageContent = () => {
     };
 
     const handleSave = (values) => {
+        // Logic sẽ gửi 2 ngưỡng mới: criticalThreshold và lowStockThreshold
         savePart({ ...values, image: currentPart?.image || values.image || 'https://picsum.photos/seed/new/50/50' }, !currentPart);
         setIsModalVisible(false);
     };
     
-    // --- Logic Export/Scan (giữ nguyên) ---
+    // --- Logic Export (giữ nguyên) ---
     const handleExport = () => {
         mockExportToCSV(parts, `kho_vat_tu_${dayjs().format('YYYYMMDD')}.csv`);
         messageApi.success('Đã xuất dữ liệu kho vật tư thành công!');
     };
-    
-    const handleScan = () => {
-        setIsScannerActive(true);
-        setTimeout(() => {
-            setIsScannerActive(false);
-            
-            const partsWithQr = parts.filter(p => p.qrCodeId);
-            if (partsWithQr.length === 0) {
-                 messageApi.error('Không có vật tư nào có mã QR để quét (Mock).');
-                 return;
-            }
-            
-            const mockQrId = partsWithQr[faker.number.int({ min: 0, max: partsWithQr.length - 1 })].qrCodeId;
-            showRealTimeModal(mockQrId);
-
-        }, 2000);
-    };
-
 
     const handleShowQR = (record) => {
         setQrPart(record);
@@ -282,10 +235,10 @@ const SparePartsInventoryPageContent = () => {
     }, [parts, filters]);
 
 
-    // --- Cấu hình Bảng (Áp dụng phân quyền) ---
+    // --- Cấu hình Bảng ---
     const columns = [
         { 
-            title: 'QR Code', 
+            title: 'Mã QR', 
             key: 'qrCode', 
             width: 150,
             fixed: 'left',
@@ -329,14 +282,20 @@ const SparePartsInventoryPageContent = () => {
             render: (url, record) => <ImageZoomPreview url={url} name={record.name} />
         },
         { title: 'Mã Vật tư', dataIndex: 'id', key: 'id', width: 120, sorter: (a, b) => a.id.localeCompare(b.id) },
-        { title: 'Tên Vật tư', dataIndex: 'name', key: 'name', ellipsis: true },
+        { 
+            title: 'Tên Vật tư', 
+            dataIndex: 'name', 
+            key: 'name', 
+            ellipsis: true,
+            width: 250 // ĐÃ THÊM: Độ rộng cố định 250px
+        },
         { 
             title: 'Loại Vật tư', 
             dataIndex: 'category', 
             key: 'category', 
             width: 150, 
             render: (text) => <Tag color="blue">{text}</Tag> ,
-            filters: PART_CATEGORIES.map(c => ({ text: c, value: c })),
+            filters: categories.map(c => ({ text: c, value: c })), // Dùng categories động
             onFilter: (value, record) => record.category === value,
         },
         { 
@@ -353,10 +312,10 @@ const SparePartsInventoryPageContent = () => {
             title: 'Trạng thái Tồn', 
             dataIndex: 'status', 
             key: 'status', 
-            width: 150,
+            width: 180,
             render: (status, record) => (
                 <Tag color={record.color} icon={<StockOutlined />}>
-                    {status.toUpperCase()} (Min: {record.minStock})
+                    {status.toUpperCase()} (Ngưỡng Cảnh báo: {record.lowStockThreshold})
                 </Tag>
             ),
             filters: [{ text: 'Critical Low', value: 'Critical Low' }, { text: 'Low Stock', value: 'Low Stock' }, { text: 'Normal', value: 'Normal' }],
@@ -390,7 +349,7 @@ const SparePartsInventoryPageContent = () => {
         <Space direction="vertical" size={24} style={{ display: 'flex' }}>
             <Title level={3}><StockOutlined /> Quản lý Kho Vật tư Bảo trì</Title>
 
-            <Divider orientation="left">Tổng quan Tồn kho & Thao tác Quét</Divider>
+            <Divider orientation="left">Tổng quan Tồn kho</Divider>
             
             {/* KPI Summary Cards giữ nguyên */}
             <Row gutter={24}>
@@ -419,17 +378,6 @@ const SparePartsInventoryPageContent = () => {
                         />
                     </Card>
                 </Col>
-                 <Col span={6} className="tw-flex tw-justify-center tw-items-center">
-                    <Button 
-                        type="default" 
-                        size="large"
-                        icon={<QrcodeOutlined />} 
-                        onClick={handleScan}
-                        loading={isScannerActive}
-                    >
-                        {isScannerActive ? 'Đang Quét...' : 'Quét Mã QR (Mock)'}
-                    </Button>
-                </Col>
             </Row>
 
             <Divider orientation="left">Danh sách Vật tư & Thao tác</Divider>
@@ -454,7 +402,7 @@ const SparePartsInventoryPageContent = () => {
                             style={{ width: '100%' }}
                         >
                             <Option value="All">Tất cả Loại</Option>
-                            {PART_CATEGORIES.map(c => <Option key={c} value={c}>{c}</Option>)}
+                            {categories.map(c => <Option key={c} value={c}>{c}</Option>)}
                         </Select>
                     </Col>
                     {/* BỘ LỌC STATUS */}
@@ -473,13 +421,6 @@ const SparePartsInventoryPageContent = () => {
                     </Col>
                     <Col span={10} style={{ textAlign: 'right' }}>
                         <Space>
-                            <Button 
-                                icon={<UploadOutlined />} 
-                                onClick={mockImport}
-                                disabled={isReadOnly}
-                            >
-                                Nhập Excel (Mock)
-                            </Button>
                             <Button 
                                 icon={<DownloadOutlined />} 
                                 onClick={handleExport}
@@ -510,7 +451,7 @@ const SparePartsInventoryPageContent = () => {
                 className="tw-shadow-xl"
             />
 
-            {/* Modal Thêm/Sửa Vật tư (giữ nguyên) */}
+            {/* Modal Thêm/Sửa Vật tư */}
             <Modal
                 title={currentPart ? "Chỉnh sửa Vật tư" : "Thêm Vật tư Mới"}
                 open={isModalVisible}
@@ -522,10 +463,19 @@ const SparePartsInventoryPageContent = () => {
                     <Form.Item name="name" label="Tên Vật tư" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    {/* TRƯỜNG CATEGORY MỚI TRONG MODAL */}
+                    {/* TRƯỜNG CATEGORY ĐỘNG */}
                     <Form.Item name="category" label="Loại Vật tư" rules={[{ required: true }]}>
-                         <Select placeholder="Chọn loại vật tư">
-                            {PART_CATEGORIES.map(c => <Option key={c} value={c}>{c}</Option>)}
+                         <Select 
+                            placeholder="Chọn hoặc gõ để thêm Loại Vật tư mới"
+                            showSearch
+                            allowClear
+                            dropdownStyle={{ maxHeight: 200, overflow: 'auto' }}
+                            // Cho phép tạo tag (loại mới) nếu chưa tồn tại
+                            mode="tags" 
+                            tokenSeparators={[',', '|', ' ']} // Cho phép tạo tag khi gõ dấu phẩy, | hoặc khoảng trắng
+                         >
+                            {/* Danh sách các categories hiện có */}
+                            {categories.map(c => <Option key={c} value={c}>{c}</Option>)}
                         </Select>
                     </Form.Item>
                     <Row gutter={16}>
@@ -540,6 +490,33 @@ const SparePartsInventoryPageContent = () => {
                             </Form.Item>
                         </Col>
                     </Row>
+                    
+                    {/* INPUT NGƯỠNG TỒN KHO MỚI */}
+                    <Divider orientation="left" style={{ margin: '16px 0' }}>Thiết lập Ngưỡng Tồn kho</Divider>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item 
+                                name="lowStockThreshold" 
+                                label="Ngưỡng CẢNH BÁO (Low Stock)" 
+                                tooltip="Số lượng tồn kho tối đa được phép trước khi hệ thống cảnh báo"
+                                rules={[{ required: true, type: 'number', min: 1 }]}
+                            >
+                                <InputNumber style={{ width: '100%' }} placeholder="Ví dụ: 5" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item 
+                                name="criticalThreshold" 
+                                label="Ngưỡng NGUY HIỂM (Critical Low)"
+                                tooltip="Số lượng tồn kho phải đặt hàng khẩn cấp (thường nhỏ hơn Ngưỡng Cảnh báo)"
+                                rules={[{ required: true, type: 'number', min: 0 }]}
+                            >
+                                <InputNumber style={{ width: '100%' }} placeholder="Ví dụ: 2" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    {/* KẾT THÚC INPUT NGƯỠNG */}
+                    
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item name="location" label="Vị trí Kho">

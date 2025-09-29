@@ -1,70 +1,92 @@
+// FRONTEND/src/hooks/useAssetManagement.js
+
 import { useState, useMemo, useCallback } from 'react';
 import { faker } from '@faker-js/faker';
+import dayjs from 'dayjs';
+import { App } from 'antd'; 
 
-const MACHINE_IDS = ['M-CNC-101', 'M-LASER-102', 'M-PRESS-103', 'M-ROBOT-104'];
-
-const initialAssets = MACHINE_IDS.map(id => {
-    const isUnderWarranty = faker.datatype.boolean();
-    const purchaseDate = faker.date.past({ years: 3 });
-    const warrantyEndDate = isUnderWarranty 
-        ? faker.date.future({ years: 1, refDate: purchaseDate })
-        : faker.date.past({ years: 1, refDate: purchaseDate });
-
-    // Lịch bảo dưỡng dự kiến (Preventive Maintenance - PM)
-    const lastPMDate = faker.date.past({ days: 90 });
-    const nextPMDate = faker.date.future({ days: 60, refDate: lastPMDate });
-    
-    return {
-        id: id,
-        name: `${id} - Máy ${faker.commerce.productAdjective()} ${faker.lorem.word()}`,
-        model: faker.vehicle.model(),
-        manufacturer: faker.company.name(),
-        serialNumber: faker.string.uuid().slice(0, 8).toUpperCase(),
-        purchaseDate: purchaseDate.toISOString().slice(0, 10),
-        warrantyEndDate: warrantyEndDate.toISOString().slice(0, 10),
-        isUnderWarranty: isUnderWarranty,
-        location: faker.helpers.arrayElement(['Khu A', 'Khu B', 'Khu C']),
-        lastPMDate: lastPMDate.toISOString().slice(0, 10),
-        nextPMDate: nextPMDate.toISOString().slice(0, 10),
-        maintenanceCycle: faker.helpers.arrayElement([90, 180, 365]), // chu kỳ (ngày)
-    };
-});
+// Mock Data TÀI SẢN
+const initialAssets = [
+    { 
+        id: 'M-CNC-101', 
+        name: 'Máy phay CNC 5 trục', 
+        model: 'Mazak Variaxis i-500', 
+        manufacturer: 'Mazak', 
+        location: 'Khu A', 
+        isUnderWarranty: true,
+        purchaseDate: '2022-01-15',
+        warrantyEndDate: '2024-01-15',
+        // THÔNG TIN PM QUAN TRỌNG: Sẽ được cập nhật tự động
+        lastPMDate: '2024-06-01', 
+        maintenanceCycle: 90, // Chu kỳ PM: 90 ngày
+        nextPMDate: dayjs('2024-06-01').add(90, 'day').format('YYYY-MM-DD'), 
+    },
+    { 
+        id: 'M-LASER-102', 
+        name: 'Máy cắt Laser Fiber', 
+        model: 'ByStar Fiber 3000', 
+        manufacturer: 'Bystronic', 
+        location: 'Khu B', 
+        isUnderWarranty: false,
+        purchaseDate: '2021-03-20',
+        warrantyEndDate: '2023-03-20',
+        lastPMDate: '2024-07-15', 
+        maintenanceCycle: 120, // Chu kỳ PM: 120 ngày
+        nextPMDate: dayjs('2024-07-15').add(120, 'day').format('YYYY-MM-DD'), 
+    },
+    { 
+        id: 'M-PRESS-103', 
+        name: 'Máy ép thủy lực', 
+        model: 'H-600T', 
+        manufacturer: 'Schuler', 
+        location: 'Khu C', 
+        isUnderWarranty: true,
+        purchaseDate: '2023-10-01',
+        warrantyEndDate: '2025-10-01',
+        lastPMDate: '2024-09-01', 
+        maintenanceCycle: 60, // Chu kỳ PM: 60 ngày
+        nextPMDate: dayjs('2024-09-01').add(60, 'day').format('YYYY-MM-DD'), 
+    },
+];
 
 export const useAssetManagement = () => {
+    const { message } = App.useApp();
     const [assets, setAssets] = useState(initialAssets);
 
-    // Tính toán tài sản sắp hết bảo hành hoặc sắp đến PM
-    const assetSummary = useMemo(() => {
-        const today = new Date();
-        const nextMonth = new Date();
-        nextMonth.setMonth(today.getMonth() + 1);
-
-        const soonToExpireWarranty = assets.filter(asset => {
-            const endDate = new Date(asset.warrantyEndDate);
-            return endDate > today && endDate <= nextMonth;
-        });
-
-        const soonDuePM = assets.filter(asset => {
-            const nextPM = new Date(asset.nextPMDate);
-            return nextPM > today && nextPM <= nextMonth;
-        });
-
-        return {
-            totalAssets: assets.length,
-            soonToExpireWarranty,
-            soonDuePM,
-        };
-    }, [assets]);
-
+    /**
+     * Cập nhật thông tin chi tiết của một tài sản.
+     * Export hàm này để các hook khác (như useWorkOrder) có thể sử dụng.
+     */
     const updateAsset = useCallback((updatedAsset) => {
-        setAssets(prev => prev.map(asset => 
-            asset.id === updatedAsset.id ? updatedAsset : asset
+        setAssets(prevAssets => prevAssets.map(asset => 
+            asset.id === updatedAsset.id ? { ...asset, ...updatedAsset } : asset
         ));
+        // Không gọi message.success ở đây để tránh spam thông báo khi tự động cập nhật
     }, []);
+
+    // --- Các hàm CRUD và KPI Mock khác (giữ nguyên) ---
+    const addAsset = useCallback((newAsset) => {
+        setAssets(prev => [...prev, newAsset]);
+        message.success(`Đã thêm tài sản mới: ${newAsset.id}`);
+    }, [message]);
+    
+    const deleteAsset = useCallback((assetId) => {
+        setAssets(prev => prev.filter(a => a.id !== assetId));
+        message.success(`Đã xóa tài sản ${assetId}`);
+    }, [message]);
+    
+    const assetSummary = useMemo(() => ({
+        totalAssets: assets.length,
+        soonToExpireWarranty: assets.filter(a => dayjs(a.warrantyEndDate).diff(dayjs(), 'day') <= 30 && dayjs(a.warrantyEndDate).isAfter(dayjs())).map(a => a.id),
+        soonDuePM: assets.filter(a => dayjs(a.nextPMDate).diff(dayjs(), 'day') <= 30 && dayjs(a.nextPMDate).isAfter(dayjs())).map(a => a.id),
+    }), [assets]);
+    
 
     return {
         assets,
-        assetSummary,
-        updateAsset,
+        updateAsset, // EXPORT updateAsset
+        addAsset,
+        deleteAsset,
+        assetSummary
     };
 };

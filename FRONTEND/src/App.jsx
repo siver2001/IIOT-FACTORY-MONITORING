@@ -13,6 +13,10 @@ import ReliabilityAnalysisPage from './features/KPI/ReliabilityAnalysisPage';
 import QualityAnalysisPage from './features/KPI/QualityAnalysisPage'; 
 import AlertManagementPage from './features/Alerts/AlertManagementPage'; 
 import FaultKnowledgeBasePage from './features/Alerts/FaultKnowledgeBasePage'; 
+
+// Import trang quản lý Mã Lỗi mới
+import FaultCatalogManagementPage from './features/Alerts/FaultCatalogManagementPage'; 
+
 import UserManagement from './Admin/UserManagement';
 import AssetManagementPage from './Admin/AssetManagementPage'; 
 import DeviceConfigPage from './Admin/DeviceConfig/DeviceConfigPage'; 
@@ -61,7 +65,7 @@ function App() {
                 <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
                 
                 {/* Route Chính (Protected) */}
-                <Route path="/" element={<ProtectedRoute element={<MainLayout />} />}>
+                <Route path="/" element={<ProtectedRoute element={<MainLayout />} minLevel={3} />}>
                     {/* Dashboard Chính (Mọi người đều thấy) */}
                     <Route index element={<DashboardPage />} />
 
@@ -87,6 +91,7 @@ function App() {
                     {/* Alert Routes (MIN LEVEL 3) */}
                     <Route path="alerts">
                         <Route index element={<ProtectedRoute element={<AlertManagementPage />} minLevel={3} />} />
+                        <Route path="fault-management" element={<ProtectedRoute element={<FaultCatalogManagementPage />} minLevel={1} />} /> 
                         <Route path="knowledge-base" element={<ProtectedRoute element={<FaultKnowledgeBasePage />} minLevel={3} />} /> 
                     </Route>
                     

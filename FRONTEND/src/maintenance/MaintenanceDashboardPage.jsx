@@ -6,13 +6,18 @@ import {
     TagsOutlined, ToolOutlined, ShopOutlined, DollarOutlined
 } from '@ant-design/icons';
 import { useWorkOrder } from './useWorkOrder'; 
-import { useAlertManagement, FAULT_CATALOG } from '../hooks/useAlertManagement'; 
+// FIX: Chỉ import hook useAlertManagement
+import { useAlertManagement } from '../hooks/useAlertManagement'; 
+// FIX: Import hook quản lý Catalog
+import { useFaultCatalog } from '../hooks/useFaultCatalog'; 
 
 const { Title, Text } = Typography;
 
 const MaintenanceDashboardPage = () => {
     const { pmComplianceKPI, costKPI } = useWorkOrder(); 
+    // FIX: Lấy FAULT_CATALOG và advancedKPIs từ các nguồn đã sửa
     const { advancedKPIs } = useAlertManagement(); 
+    const { FAULT_CATALOG } = useFaultCatalog();
     
     // --- Tính toán giá trị ---
     const mttaColor = advancedKPIs.mtta < 2.5 ? '#52c41a' : '#ff4d4f'; 
@@ -20,9 +25,13 @@ const MaintenanceDashboardPage = () => {
     const cpmhColor = costKPI.cpmh < 1 ? '#52c41a' : '#ff4d4f'; 
 
     const faultColumns = [
-        { title: 'Mã Lỗi', dataIndex: 'faultCode', key: 'faultCode', render: (code) => <Tag color="geekblue" icon={<TagsOutlined />}>{code}</Tag> },
-        { title: 'Mô tả', dataIndex: 'faultCode', key: 'description', 
-            render: (code) => FAULT_CATALOG.find(f => f.code === code)?.description || 'Không rõ' 
+        { title: 'Mã Lỗi', dataIndex: 'faultCode', key: 'faultCode', render: (code) => <Tag color="geekblue" style={{ fontWeight: 'bold' }}>{code}</Tag> },
+        { 
+            title: 'Mô tả', 
+            dataIndex: 'faultCode', 
+            key: 'description', 
+            // FIX: Sử dụng FAULT_CATALOG động
+            render: (code) => (FAULT_CATALOG || []).find(f => f.code === code)?.description || 'Không rõ' 
         },
         { 
             title: 'Số lần Lặp lại', 

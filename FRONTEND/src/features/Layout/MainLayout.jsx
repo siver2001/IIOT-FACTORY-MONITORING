@@ -6,7 +6,7 @@ import { Layout, Menu, Button, theme, Dropdown, Space, Badge, Avatar, App, Tag  
 import { Outlet, Link } from 'react-router-dom';
 import { 
     DashboardOutlined, BuildOutlined, AlertOutlined, SettingOutlined, 
-    UserOutlined, DownOutlined, BarChartOutlined, ShopOutlined, ToolOutlined, StockOutlined, DollarOutlined // THÊM DollarOutlined
+    UserOutlined, DownOutlined, BarChartOutlined, ShopOutlined, ToolOutlined, StockOutlined,TagOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../context/AuthContext.jsx'; 
 import { useRealTimeData } from '../../hooks/useRealTimeData'; 
@@ -54,7 +54,8 @@ const rawMenuItems = [
         label: 'Quản lý Cảnh báo', 
         children: [
             { key: '/alerts', label: 'Danh sách Cảnh báo', link: '/alerts' },
-            { key: '/alerts/knowledge-base', label: 'Kho tri thức Lỗi', link: '/alerts/knowledge-base' },
+            { key: '/alerts/fault-management', icon: <TagOutlined />, label: 'Quản lý Danh mục Mã Lỗi', link: '/alerts/fault-management', permissionLevel: 1 }, // Chỉ Admin/Manager
+            { key: '/alerts/knowledge-base', label: 'Kho tri thức Lỗi (RCA)', link: '/alerts/knowledge-base' }, // Giữ lại trang cũ nếu cần xem lịch sử
         ]
     },
     { 

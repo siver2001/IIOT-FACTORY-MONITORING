@@ -4,7 +4,11 @@ import { useState, useMemo, useCallback } from 'react';
 import { faker } from '@faker-js/faker';
 import dayjs from 'dayjs'; 
 import { App } from 'antd'; 
-import { useWorkOrder } from '../maintenance/useWorkOrder'; // Import hook WO mới
+import { useWorkOrder } from '../maintenance/useWorkOrder'; 
+import { useFaultCatalog } from './useFaultCatalog'; // Import hook quản lý Catalog
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+dayjs.extend(isSameOrAfter);
+
 
 const MACHINE_IDS = ['M-CNC-101', 'M-LASER-102', 'M-PRESS-103', 'M-ROBOT-104'];
 const SEVERITIES = ['Critical', 'Error', 'Warning'];
@@ -17,30 +21,22 @@ const ALERT_MESSAGES = [
 ];
 const STATUSES = ['Active', 'Acknowledged', 'Resolved'];
 
-// DANH MỤC LỖI MỚI (FAULT CATALOG)
-const FAULT_CATALOG = [
-    { code: 'M-001', description: 'Hỏng Bạc đạn/Vòng bi', category: 'Cơ khí' },
-    { code: 'E-002', description: 'Lỗi Cảm biến nhiệt độ', category: 'Điện & Điện tử' },
-    { code: 'H-003', description: 'Rò rỉ Áp suất thủy lực', category: 'Thủy lực' },
-    { code: 'S-004', description: 'Lỗi Truyền thông PLC', category: 'Phần mềm & Mạng' },
-    { code: 'T-005', description: 'Trục chính quá nhiệt', category: 'Vận hành' },
-];
-// EXPORT để sử dụng trong giao diện
-export { FAULT_CATALOG }; 
-
 // Hàm mô phỏng tạo một danh sách cảnh báo phong phú
+// FIX: Hàm này không còn phụ thuộc vào FAULT_CATALOG tĩnh nữa
 const generateMockAlerts = (count = 50) => {
+    // Sử dụng mockFaults cố định để đảm bảo mock data ban đầu có lỗi Resolved
+    const mockFaults = [
+        { code: 'T-005', description: 'Quá nhiệt' }, 
+        { code: 'E-002', description: 'Rung động' }
+    ];
+
     const alerts = [];
-    let currentTime = dayjs().subtract(7, 'day'); // Bắt đầu từ 7 ngày trước
+    let currentTime = dayjs().subtract(7, 'day');
 
     for (let i = 0; i < count; i++) {
         const severity = faker.helpers.arrayElement(SEVERITIES);
         let status;
-        if (i < 10) { 
-            status = 'Active'; 
-        } else {
-            status = faker.helpers.arrayElement(STATUSES);
-        }
+        if (i < 10) { status = 'Active'; } else { status = faker.helpers.arrayElement(STATUSES); }
 
         currentTime = currentTime.add(faker.number.int({ min: 30, max: 24 * 60 }), 'minute');
         const timestamp = currentTime.toISOString();
@@ -54,16 +50,15 @@ const generateMockAlerts = (count = 50) => {
              acknowledgedBy = faker.helpers.arrayElement(['admin_factory', 'supervisor_a']);
              acknowledgedAt = dayjs(timestamp).add(faker.number.int({ min: 10, max: 120 }), 'minute').toISOString();
         }
-        if (status === 'Resolved') {
-            const fault = faker.helpers.arrayElement(FAULT_CATALOG);
+        if (status === 'Resolved' && i % 3 === 0) { // Đảm bảo một số lỗi có faultCode
+            const fault = faker.helpers.arrayElement(mockFaults);
             faultCode = fault.code; 
             resolvedInfo = JSON.stringify({
-                cause: 'Do mài mòn bạc đạn quá mức.', 
-                action: 'Đã thay thế bạc đạn mới và hiệu chỉnh lại tần suất giám sát.',
+                cause: `Lỗi: ${fault.description} xảy ra do mài mòn.`, 
+                action: 'Đã thay thế linh kiện.',
                 faultCode: faultCode,
             });
         }
-
 
         alerts.push({
             id: faker.string.uuid(),
@@ -71,7 +66,7 @@ const generateMockAlerts = (count = 50) => {
             severity: severity,
             message: faker.helpers.arrayElement(ALERT_MESSAGES),
             timestamp: timestamp,
-            acknowledgedAt: acknowledgedAt, // LƯU THỜI GIAN ACKNOWLEDGEMENT CHO MTTA
+            acknowledgedAt: acknowledgedAt, 
             status: status,
             priority: severity === 'Critical' ? 1 : severity === 'Error' ? 2 : 3,
             acknowledgedBy: acknowledgedBy,
@@ -83,11 +78,17 @@ const generateMockAlerts = (count = 50) => {
 };
 
 export const useAlertManagement = () => {
-    const [alerts, setAlerts] = useState(generateMockAlerts());
     const { message } = App.useApp(); 
     const { createWorkOrder } = useWorkOrder(); 
+    
+    // FIX: Lấy FAULT_CATALOG và hàm thêm động từ hook mới
+    const { FAULT_CATALOG, addDynamicFaultCode } = useFaultCatalog(); 
+    
+    // Khởi tạo Alerts
+    const [alerts, setAlerts] = useState(generateMockAlerts());
+    
 
-    // Hàm updateAlertStatus
+    // Hàm updateAlertStatus (Giữ nguyên)
     const updateAlertStatus = useCallback((id, newStatus, user, notes = null, faultCode = null) => {
         setAlerts(prevAlerts => prevAlerts.map(alert => {
             if (alert.id === id) {
@@ -95,13 +96,13 @@ export const useAlertManagement = () => {
                 
                 if (newStatus === 'Acknowledged') {
                     updatedAlert.acknowledgedBy = user || 'Admin';
-                    updatedAlert.acknowledgedAt = new Date().toISOString(); // CẬP NHẬT THỜI GIAN ACKNOWLEDGEMENT
+                    updatedAlert.acknowledgedAt = new Date().toISOString(); 
                     updatedAlert.resolvedInfo = null; 
                     updatedAlert.faultCode = null;
                 }
                 if (newStatus === 'Resolved') {
                     updatedAlert.acknowledgedBy = updatedAlert.acknowledgedBy || user || 'Admin';
-                    updatedAlert.acknowledgedAt = updatedAlert.acknowledgedAt || new Date().toISOString(); // Đảm bảo có acknowledgedAt
+                    updatedAlert.acknowledgedAt = updatedAlert.acknowledgedAt || new Date().toISOString(); 
                     updatedAlert.resolvedInfo = JSON.stringify({ ...notes, faultCode }); 
                     updatedAlert.faultCode = faultCode;
                 }
@@ -111,38 +112,28 @@ export const useAlertManagement = () => {
         }));
     }, []);
 
-    // KHỐI 1: TÍNH TOÁN KPI SUMMARY
+    // KHỐI 1: TÍNH TOÁN KPI SUMMARY (Giữ nguyên)
     const kpiSummary = useMemo(() => {
         const totalAlerts = alerts.length;
         const activeCount = alerts.filter(a => a.status === 'Active').length;
         const acknowledgedCount = alerts.filter(a => a.status === 'Acknowledged').length;
-        const criticalCount = alerts.filter(a => a.severity === 'Critical' && a.status !== 'Resolved').length;
-
-        return {
-            totalAlerts,
-            activeCount,
-            acknowledgedCount,
-            criticalCount,
-        };
+        const criticalCount = alerts.filter(a => a.severity === 'Critical' && a.status !== 'Resolved').length; 
+        return { totalAlerts, activeCount, acknowledgedCount, criticalCount };
     }, [alerts]);
 
     // KHỐI 2: TÍNH TOÁN ADVANCED KPI (MTTA và Độ lặp lại Lỗi)
     const advancedKPIs = useMemo(() => {
-        let totalAcknowledgeTime = 0; // đơn vị: ms
+        let totalAcknowledgeTime = 0; 
         let acknowledgedCount = 0;
-
         const machineFailureCount = {};
         const faultCodeCount = {};
 
         alerts.forEach(alert => {
-            // 1. Tính MTTA
             if ((alert.status === 'Acknowledged' || alert.status === 'Resolved') && alert.timestamp && alert.acknowledgedAt) {
                 const timeDiffMs = dayjs(alert.acknowledgedAt).diff(dayjs(alert.timestamp));
                 totalAcknowledgeTime += timeDiffMs;
                 acknowledgedCount++;
             }
-            
-            // 2. Độ lặp lại Lỗi (chỉ tính Alert đã Resolved)
             if (alert.status === 'Resolved') {
                 machineFailureCount[alert.machineId] = (machineFailureCount[alert.machineId] || 0) + 1;
                 if (alert.faultCode) {
@@ -153,27 +144,22 @@ export const useAlertManagement = () => {
 
         const mttaHours = acknowledgedCount > 0 ? (totalAcknowledgeTime / acknowledgedCount) / (1000 * 60 * 60) : 0;
         
-        // Sắp xếp Top 5 Máy
-        const topMachines = Object.entries(machineFailureCount)
-            .sort(([, countA], [, countB]) => countB - countA)
-            .slice(0, 5)
-            .map(([machineId, count]) => ({ machineId, count }));
-            
-        // Sắp xếp Top 5 Mã Lỗi
+        // Sắp xếp Top 5 Mã Lỗi, sử dụng FAULT_CATALOG động
         const topFaults = Object.entries(faultCodeCount)
             .sort(([, countA], [, countB]) => countB - countA)
             .slice(0, 5)
-            .map(([faultCode, count]) => ({ faultCode, count }));
+            .map(([faultCode, count]) => ({ 
+                faultCode, 
+                count, 
+                // Lấy mô tả chi tiết từ catalog động
+                description: FAULT_CATALOG.find(f => f.code === faultCode)?.description || 'Không rõ' 
+            }));
 
-        return {
-            mtta: parseFloat(mttaHours.toFixed(2)), // Giờ
-            topMachines,
-            topFaults,
-        };
-    }, [alerts]);
+        return { mtta: parseFloat(mttaHours.toFixed(2)), topFaults };
+    }, [alerts, FAULT_CATALOG]);
 
 
-    // HÀM MỚI: Xử lý Giải quyết Alert VÀ Tự động Tạo WO
+    // HÀM: Xử lý Giải quyết Alert VÀ Tự động Tạo WO
     const resolveAlertAndCreateWO = useCallback((alertId, resolveData, user) => {
         
         const alertToResolve = alerts.find(a => a.id === alertId);
@@ -183,66 +169,55 @@ export const useAlertManagement = () => {
             return;
         }
 
-        // 1. TẠO WORK ORDER tự động nếu là Critical/Error
+        // 1. XỬ LÝ VÀ THÊM MÃ LỖI MỚI (nếu cần)
+        const finalFaultEntry = addDynamicFaultCode(resolveData.faultCode);
+        const finalFaultCode = finalFaultEntry.code;
+
+        // 2. TẠO WORK ORDER tự động nếu là Critical/Error
         if (alertToResolve.severity === 'Critical' || alertToResolve.severity === 'Error') {
             
-            const faultDetail = FAULT_CATALOG.find(f => f.code === resolveData.faultCode);
-            const titleWo = `Sự cố: ${alertToResolve.message}`;
+            const titleWo = `CM: Khắc phục lỗi ${finalFaultCode} (${finalFaultEntry.description}) tại ${alertToResolve.machineId}`;
             
             createWorkOrder({
                 machineCode: alertToResolve.machineId, 
-                type: 'CM', // Bảo trì sự cố
+                type: 'CM',
                 title: titleWo,
-                description: `Tạo tự động từ Alert ${alertId}.\nNguyên nhân gốc rễ: ${resolveData.cause}.\nHành động khắc phục: ${resolveData.action}.\nLoại lỗi: ${faultDetail?.description || resolveData.faultCode}`,
-                priority: alertToResolve.severity === 'Critical' ? 'Cao' : 'Trung bình',
+                description: `Tạo tự động từ Alert ${alertId}.\nNguyên nhân gốc rễ: ${resolveData.cause}.\nHành động khắc phục: ${resolveData.action}.\nLoại lỗi: ${finalFaultEntry.description}`,
+                priority: finalFaultEntry.priority === 'Critical' ? 'Cao' : 'Trung bình',
                 dueDate: dayjs().add(1, 'day').toDate(), 
                 sourceAlertId: alertId, 
                 assignedTo: user, 
             });
         }
         
-        // 2. CẬP NHẬT TRẠNG THÁI ALERT 
+        // 3. CẬP NHẬT TRẠNG THÁI ALERT 
         updateAlertStatus(
             alertId, 
             'Resolved', 
             user, 
             { cause: resolveData.cause, action: resolveData.action }, 
-            resolveData.faultCode 
+            finalFaultCode 
         );
 
         message.success(`Alert ${alertId} đã được giải quyết và đóng. Lệnh công việc (WO) đã được tạo tự động.`);
 
-    }, [alerts, message, createWorkOrder, updateAlertStatus]);
+    }, [alerts, message, createWorkOrder, updateAlertStatus, addDynamicFaultCode, FAULT_CATALOG]);
 
-    // LOGIC LỌC DỮ LIỆU
+
+    // LOGIC LỌC DỮ LIỆU (Giữ nguyên)
     const getFilteredAlerts = useCallback((filters) => {
-        return alerts.filter(alert => {
+         return alerts.filter(alert => {
             const { status, severity, machineId, dateRange } = filters;
             let isValid = true;
             
-            // 1. Lọc theo Trạng thái
-            if (status && status !== 'All' && alert.status !== status) {
-                isValid = false;
-            }
-            
-            // 2. Lọc theo Mức độ
-            if (isValid && severity && alert.severity !== severity) {
-                isValid = false;
-            }
-            
-            // 3. Lọc theo Mã Máy
-            if (isValid && machineId && alert.machineId !== machineId) {
-                isValid = false;
-            }
+            if (status && status !== 'All' && alert.status !== status) { isValid = false; }
+            if (isValid && severity && alert.severity !== severity) { isValid = false; }
+            if (isValid && machineId && alert.machineId !== machineId) { isValid = false; }
 
-            // 4. Lọc theo Khoảng thời gian (Date Range)
             if (isValid && dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
                 const recordTime = dayjs(alert.timestamp);
                 const [start, end] = dateRange;
-
-                if (!recordTime.isSameOrAfter(start, 'second') || recordTime.isAfter(end, 'second')) {
-                    isValid = false;
-                }
+                if (!recordTime.isSameOrAfter(start, 'second') || recordTime.isAfter(end, 'second')) { isValid = false; }
             }
 
             return isValid;
@@ -250,18 +225,14 @@ export const useAlertManagement = () => {
     }, [alerts]);
 
 
-    const activeAlertCount = useMemo(() => alerts.filter(a => a.status === 'Active').length, [alerts]);
-
     return {
         alerts: alerts, 
         kpiSummary, 
-        advancedKPIs, // Xuất KPI nâng cao
-        activeAlertCount,
+        MACHINE_IDS,
+        SEVERITIES,
+        FAULT_CATALOG: FAULT_CATALOG, // EXPORT CATALOG ĐỘNG
         getFilteredAlerts, 
         updateAlertStatus,
         resolveAlertAndCreateWO, 
-        MACHINE_IDS,
-        SEVERITIES,
-        FAULT_CATALOG, 
     };
 };

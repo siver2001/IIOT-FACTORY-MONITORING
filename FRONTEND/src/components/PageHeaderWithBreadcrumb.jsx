@@ -1,44 +1,45 @@
 // FRONTEND/src/components/PageHeaderWithBreadcrumb.jsx
 
 import React from 'react';
-import { Typography, Space, Button } from 'antd';
-import { ArrowLeftOutlined, HomeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { Button, Typography, Space } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
 /**
- * Thành phần Header chuẩn cho các trang chức năng.
- * * @param {object} props
- * @param {string} props.title Tiêu đề chính của trang.
- * @param {React.ReactNode} [props.icon] Icon chính của trang.
- * @param {React.ReactNode} [props.actions] Các nút hành động bên phải (ví dụ: Add, Export).
+ * Component Header trang với nút Quay lại và Breadcrumb cơ bản.
+ * @param {object} props
+ * @param {string} props.title Tiêu đề chính của trang
+ * @param {React.ReactNode} props.icon Icon của tiêu đề
+ * @param {function} [props.onBack] Hàm xử lý khi nhấn nút quay lại (mặc định là navigate(-1))
  */
-const PageHeaderWithBreadcrumb = ({ title, icon, actions }) => {
+const PageHeaderWithBreadcrumb = ({ title, icon, onBack }) => {
     const navigate = useNavigate();
+    
+    const defaultOnBack = () => {
+        // Quay lại trang trước đó trong lịch sử trình duyệt (Status Page hoặc Asset Management)
+        navigate(-1); 
+    };
 
     return (
-        <div className="tw-border-b tw-pb-4 tw-mb-6 tw-flex tw-justify-between tw-items-center">
-            <Space size="middle">
-                {/* Nút Quay lại (Chỉ hiển thị nếu không phải trang chủ) */}
-                {window.location.pathname !== '/' && (
-                    <Button 
-                        icon={<ArrowLeftOutlined />} 
-                        type="text" 
-                        onClick={() => navigate(-1)}
-                        className="tw-mr-2"
-                    />
-                )}
-                <Title level={3} style={{ margin: 0 }}>
-                    <Space>
-                        {icon || <HomeOutlined />} 
+        <div className="tw-p-4 tw-mb-4 tw-border-b tw-border-gray-200 tw-bg-white tw-shadow-sm">
+            <Space align="center" className="tw-w-full">
+                <Button
+                    type="default"
+                    icon={<ArrowLeftOutlined />}
+                    onClick={onBack || defaultOnBack}
+                    size="large"
+                >
+                    Quay lại
+                </Button>
+                <Title level={3} style={{ margin: 0, marginLeft: 16 }}>
+                    <Space size="middle">
+                        {icon}
                         {title}
                     </Space>
                 </Title>
             </Space>
-            
-            {/* Vùng chứa các nút hành động (Add/Export) */}
-            {actions && <Space>{actions}</Space>}
         </div>
     );
 };

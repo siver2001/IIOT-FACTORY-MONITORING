@@ -6,12 +6,14 @@ import {
     AlertOutlined, HistoryOutlined, CheckCircleOutlined, WarningOutlined, 
     StopOutlined, BellOutlined, CheckOutlined, CloseOutlined, UserOutlined, DownloadOutlined , SelectOutlined
 } from '@ant-design/icons';
-import { useAlertManagement, FAULT_CATALOG } from '../../hooks/useAlertManagement';
+// FIX: Chỉ import useAlertManagement, lấy FAULT_CATALOG qua hook
+import { useAlertManagement } from '../../hooks/useAlertManagement'; 
 import dayjs from 'dayjs';
 import { useAuth } from '../../context/AuthContext';
 import { App } from 'antd'; 
 
-const { Title } = Typography;
+// FIX: Đảm bảo Text được destructuring
+const { Title, Text } = Typography; 
 const { Option } = Select;
 const { RangePicker } = DatePicker; 
 
@@ -83,7 +85,8 @@ const AlertManagementPageContent = () => {
     const { username } = useAuth();
     const { message } = App.useApp();
     const { 
-        kpiSummary, MACHINE_IDS, SEVERITIES, getFilteredAlerts, updateAlertStatus, resolveAlertAndCreateWO
+        kpiSummary, MACHINE_IDS, SEVERITIES, getFilteredAlerts, updateAlertStatus, resolveAlertAndCreateWO,
+        FAULT_CATALOG // FIX: Lấy catalog động từ hook
     } = useAlertManagement(); 
 
     // === FILTER STATES ===
@@ -112,15 +115,36 @@ const AlertManagementPageContent = () => {
     const handleActionClick = (record, action) => {
         setCurrentAlert(record);
         if (action === 'resolve') {
+            // FIX: Thực hiện quy trình nghiêm ngặt: Active -> Acknowledged -> Resolved
+            if (record.status === 'Active') {
+                 message.warning('Vui lòng Xác nhận cảnh báo trước khi Giải quyết.');
+                 return;
+            }
+            
             setIsModalVisible(true);
             try {
-                const info = record.resolvedInfo ? JSON.parse(record.resolvedInfo) : { cause: '', action: '', faultCode: null };
-                form.setFieldsValue({ cause: info.cause, action: info.action, faultCode: info.faultCode });
+                // Khi mở modal, nếu đã có faultCode, phải đặt nó vào mảng cho Select mode="tags"
+                let initialFaultCode = record.faultCode ? [record.faultCode] : [];
+
+                // Đảm bảo parse JSON an toàn
+                const info = record.resolvedInfo ? JSON.parse(record.resolvedInfo) : { cause: '', action: '', faultCode: initialFaultCode };
+                
+                // Nếu đang ở trạng thái Resolved và xem chi tiết, faultCode sẽ là string, ta phải bọc nó lại.
+                if (typeof info.faultCode === 'string' && info.faultCode) {
+                    initialFaultCode = [info.faultCode];
+                } else if (Array.isArray(info.faultCode)) {
+                    initialFaultCode = info.faultCode;
+                }
+
+                form.setFieldsValue({ 
+                    cause: info.cause, 
+                    action: info.action, 
+                    faultCode: initialFaultCode 
+                });
             } catch (e) {
-                 form.setFieldsValue({ cause: '', action: '', faultCode: null });
+                 form.setFieldsValue({ cause: '', action: '', faultCode: [] });
             }
         } else if (action === 'acknowledge') {
-            // Chỉ xác nhận Alert, không cần tạo WO
             updateAlertStatus(record.id, 'Acknowledged', username); 
             message.success(`Đã xác nhận cảnh báo ${record.machineId}.`);
         }
@@ -128,8 +152,18 @@ const AlertManagementPageContent = () => {
 
     // Hàm xử lý Form Submit (Gọi hàm giải quyết VÀ tạo WO tự động)
     const onResolveFormSubmit = (values) => {
+        // FIX: Xử lý giá trị faultCode: Lấy phần tử đầu tiên vì mode="tags" trong trường này chỉ dùng 1 giá trị
+        const faultCodeValue = Array.isArray(values.faultCode) && values.faultCode.length > 0
+            ? values.faultCode[0]
+            : null;
+        
+        if (!faultCodeValue) {
+             message.error('Mã Lỗi không được để trống.');
+             return;
+        }
+
         // Gọi hàm mới: Giải quyết Alert VÀ Tự động Tạo WO
-        resolveAlertAndCreateWO(currentAlert.id, values, username);
+        resolveAlertAndCreateWO(currentAlert.id, { ...values, faultCode: faultCodeValue }, username);
         setIsModalVisible(false);
         setCurrentAlert(null);
     }
@@ -154,7 +188,7 @@ const AlertManagementPageContent = () => {
         message.success(`Đã xuất ${alerts.length} bản ghi thành công.`);
     }
 
-    // ==================== Table Definition (Giữ nguyên) ====================
+    // ==================== Table Definition (Logic Hành động đã sửa) ====================
     const columns = useMemo(() => ([
         { 
             title: 'Thời gian', 
@@ -207,6 +241,7 @@ const AlertManagementPageContent = () => {
             fixed: 'right',
             render: (_, record) => (
                 <Space size="small">
+                    {/* Nút Xác nhận: CHỈ hiển thị khi Active */}
                     {record.status === 'Active' && (
                         <Button 
                             size="small" 
@@ -217,17 +252,20 @@ const AlertManagementPageContent = () => {
                             Xác nhận 
                         </Button>
                     )}
-                    {(record.status === 'Active' || record.status === 'Acknowledged') && (
+                    
+                    {/* Nút Giải quyết & Tạo WO: CHỈ hiển thị khi ĐÃ Xác nhận (Acknowledged) */}
+                    {record.status === 'Acknowledged' && (
                         <Button 
                             size="small" 
                             icon={<CloseOutlined />} 
                             onClick={() => handleActionClick(record, 'resolve')}
-                            danger={record.status === 'Active'}
-                            type="default"
+                            type="primary"
                         >
                             Giải quyết & Tạo WO
                         </Button>
                     )}
+                     
+                     {/* Xem chi tiết cho trạng thái Resolved */}
                      {record.status === 'Resolved' && (
                          <Button size="small" onClick={() => handleActionClick(record, 'resolve')}>Xem chi tiết</Button>
                     )}
@@ -345,7 +383,7 @@ const AlertManagementPageContent = () => {
                 )}
             />
 
-            {/* Modal Giải quyết Cảnh báo (Giữ nguyên) */}
+            {/* Modal Giải quyết Cảnh báo (Đã cập nhật Select) */}
              <Modal
                 title={`Giải quyết Cảnh báo ${currentAlert?.machineId}`}
                 open={isModalVisible}
@@ -356,30 +394,34 @@ const AlertManagementPageContent = () => {
                     form={form}
                     layout="vertical"
                     onFinish={onResolveFormSubmit} 
-                    initialValues={{ cause: '', action: '', faultCode: null }}
+                    // initialValues sẽ được set trong handleActionClick
                 >
                     <p>Cảnh báo: <strong>{currentAlert?.message}</strong></p>
                     <p>Thời gian: {dayjs(currentAlert?.timestamp).format('YYYY-MM-DD HH:mm:ss')}</p>
                     <Divider />
                     
-                    {/* LỰA CHỌN MÃ LỖI */}
+                    {/* LỰA CHỌN MÃ LỖI (Mục 1) */}
                     <Form.Item
                         name="faultCode"
-                        label={<Text strong><SelectOutlined /> 1. Mã Lỗi Đã Khắc phục (Fault Catalog)</Text>}
-                        rules={[{ required: true, message: 'Vui lòng chọn mã lỗi!' }]}
+                        label={<Text strong><SelectOutlined /> 1. Mã Lỗi Đã Khắc phục (Thêm tùy ý)</Text>}
+                        // Rule yêu cầu giá trị là mảng (do mode="tags")
+                        rules={[{ required: true, type: 'array', min: 1, message: 'Vui lòng chọn hoặc nhập Mã lỗi!' }]} 
                     >
                         <Select
-                            placeholder="Chọn mã lỗi từ danh mục..."
+                            placeholder="Chọn hoặc gõ Mã lỗi mới (VD: TE-006)..."
                             showSearch
-                            optionFilterProp="children"
+                            allowClear
+                            mode="tags" // FIX: Cho phép người dùng tự thêm mã lỗi
+                            maxTagCount={1} // Chỉ cho phép chọn 1 mã lỗi
                             filterOption={(input, option) =>
-                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                             }
                         >
+                            {/* Dùng FAULT_CATALOG động từ hook */}
                             {FAULT_CATALOG.map(fault => (
                                 <Option 
                                     key={fault.code} 
-                                    value={fault.code}
+                                    value={fault.code} // Giá trị option là mã lỗi
                                     label={`${fault.code} - ${fault.description}`}
                                 >
                                     <Tag color="geekblue">{fault.code}</Tag> {fault.description} ({fault.category})
@@ -388,7 +430,7 @@ const AlertManagementPageContent = () => {
                         </Select>
                     </Form.Item>
                     
-                    {/* Trường ghi chú nguyên nhân */}
+                    {/* Trường ghi chú nguyên nhân (Mục 2) */}
                     <Form.Item
                         name="cause"
                         label="2. Nguyên nhân Gốc rễ của Lỗi"
@@ -397,7 +439,7 @@ const AlertManagementPageContent = () => {
                         <Input.TextArea rows={3} placeholder="Ví dụ: Cảm biến bị hỏng do tiếp xúc lâu với nhiệt độ cao..." />
                     </Form.Item>
                     
-                    {/* Trường ghi chú hành động khắc phục */}
+                    {/* Trường ghi chú hành động khắc phục (Mục 3) */}
                     <Form.Item
                         name="action"
                         label="3. Hành động Khắc phục/Giải quyết"
