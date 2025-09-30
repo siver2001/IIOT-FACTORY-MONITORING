@@ -227,6 +227,7 @@ export const useAlertManagement = () => {
 
     return {
         alerts: alerts, 
+        advancedKPIs,
         kpiSummary, 
         MACHINE_IDS,
         SEVERITIES,

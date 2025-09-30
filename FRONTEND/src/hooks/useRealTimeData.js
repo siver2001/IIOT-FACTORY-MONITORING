@@ -54,7 +54,8 @@ const generateMockData = () => {
             machineId: `M-${faker.number.int({ min: 101, max: 150 })}`,
             message: faker.helpers.arrayElement(['High Temperature', 'Motor Vibration Warning', 'Low Pressure Alert', 'Communication Loss']),
             severity: faker.helpers.arrayElement(['Error', 'Warning', 'Critical']),
-        })).sort(() => Math.random() - 0.5), // Xáo trộn để có vẻ real-time
+            status: 'Active', 
+        })).sort(() => Math.random() - 0.5),
     });
 };
 

@@ -196,32 +196,71 @@ const AlertManagementPageContent = () => {
             key: 'timestamp', 
             sorter: (a, b) => dayjs(a.timestamp).unix() - dayjs(b.timestamp).unix(),
             render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
-            width: 180,
+            width: 170, 
             fixed: 'left'
         },
-        { title: 'Mã Máy', dataIndex: 'machineId', key: 'machineId', width: 120 },
-        { title: 'Mức độ', dataIndex: 'severity', key: 'severity', render: getSeverityTag, width: 120 },
-        { title: 'Thông báo Chi tiết', dataIndex: 'message', key: 'message' },
+        { title: 'Mã Máy', dataIndex: 'machineId', key: 'machineId', width: 100 }, // Giảm từ 120 xuống 100
+        { title: 'Mức độ', dataIndex: 'severity', key: 'severity', render: getSeverityTag, width: 100 }, // Giảm từ 120 xuống 100
+        { title: 'Thông báo Chi tiết', dataIndex: 'message', key: 'message' }, // ĐÃ XÓA 'width' để cột này tự mở rộng
         { 
             title: 'Mã Lỗi', 
             dataIndex: 'faultCode', 
             key: 'faultCode',
-            width: 100,
+            width: 90, 
             render: (text) => text ? <Tag color="geekblue">{text}</Tag> : '-'
         },
         { 
             title: 'Người Xác nhận', 
             dataIndex: 'acknowledgedBy', 
             key: 'acknowledgedBy',
-            width: 150,
+            width: 130, // Giảm từ 150 xuống 130
             render: (text) => text ? <Tag icon={<UserOutlined />} color="blue">{text}</Tag> : '-'
         },
+        
+        // CỘT MỚI: MTTA (Thời gian phản hồi)
+        { 
+            title: 'MTTA (Phản hồi)', 
+            key: 'mtta', 
+            width: 130, // Tối ưu hóa độ rộng
+            render: (_, record) => {
+                if (record.acknowledgedAt) {
+                    const diffMinutes = dayjs(record.acknowledgedAt).diff(dayjs(record.timestamp), 'minute');
+                    const hours = Math.floor(diffMinutes / 60);
+                    const minutes = diffMinutes % 60;
+                    return <Tag color="blue">{hours}h {minutes}m</Tag>;
+                }
+                return '-';
+            }
+        },
+
+        // CỘT MỚI: MTTR (Thời gian xử lý)
+        { 
+            title: 'MTTR (Xử lý)', 
+            key: 'mttr', 
+            width: 120, // Tối ưu hóa độ rộng
+            render: (_, record) => {
+                if (record.status === 'Resolved' && record.acknowledgedAt && record.resolvedInfo) {
+                    const resolvedTime = dayjs(record.timestamp); 
+                    const acknowledgedTime = dayjs(record.acknowledgedAt);
+                    const diffMinutes = resolvedTime.diff(acknowledgedTime, 'minute');
+                    
+                    if (diffMinutes <= 0) return <Tag color="green">0h 0m</Tag>;
+                    
+                    const hours = Math.floor(diffMinutes / 60);
+                    const minutes = diffMinutes % 60;
+                    
+                    return <Tag color="green">{hours}h {minutes}m</Tag>;
+                }
+                return '-';
+            }
+        },
+        
         { 
             title: 'Ghi chú Giải quyết', 
             dataIndex: 'resolvedInfo', 
             key: 'resolvedInfo',
             render: (text) => text ? <span className='tw-text-green-600'>Đã ghi chú</span> : <span className='tw-text-gray-400'>Chưa có</span>,
-            width: 150,
+            width: 120,
         },
         { 
             title: 'Trạng thái', 
@@ -232,12 +271,12 @@ const AlertManagementPageContent = () => {
                     {status.toUpperCase()}
                 </Tag>
             ),
-            width: 120,
+            width: 100, 
         },
         {
             title: 'Hành động',
             key: 'action',
-            width: 250,
+            width: 180,
             fixed: 'right',
             render: (_, record) => (
                 <Space size="small">
