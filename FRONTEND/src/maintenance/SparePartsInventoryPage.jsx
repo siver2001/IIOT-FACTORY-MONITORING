@@ -9,7 +9,7 @@ import {
 import { 
     PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, 
     DownloadOutlined, StockOutlined, ShopOutlined, AlertOutlined, QrcodeOutlined, PrinterOutlined, WarningOutlined, ThunderboltOutlined,
-    LinkOutlined 
+    LinkOutlined, SwapOutlined // <-- IMPORT SwapOutlined
 } from '@ant-design/icons';
 // Đảm bảo import useSpareParts
 import { useSpareParts } from './useSpareParts'; 
@@ -49,7 +49,7 @@ const mockExportToCSV = (data, filename = 'spare_parts_inventory.csv') => {
         csv += rowData + '\n';
     });
 
-    const blob = new Blob([new UintArray([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); 
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); 
     const link = document.createElement("a");
     if (link.download !== undefined) {
         const url = URL.createObjectURL(blob);
@@ -156,8 +156,8 @@ const ImageZoomPreview = ({ url, name }) => (
 
 
 const SparePartsInventoryPageContent = () => {
-    // Đã đổi tên PART_CATEGORIES thành categories
-    const { parts, savePart, deletePart, summary, PART_CATEGORIES: categories, generateQrCode } = useSpareParts(); 
+    // LẤY recordStockMovement TỪ HOOK
+    const { parts, savePart, deletePart, summary, PART_CATEGORIES: categories, generateQrCode, recordStockMovement } = useSpareParts(); 
     const { roleLevel } = useAuth(); 
     const navigate = useNavigate();
     const location = useLocation(); 
@@ -165,25 +165,38 @@ const SparePartsInventoryPageContent = () => {
     
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isQRModalVisible, setIsQRModalVisible] = useState(false);
+    const [isMovementModalVisible, setIsMovementModalVisible] = useState(false); // <-- STATE MỚI
     const [currentPart, setCurrentPart] = useState(null);
     const [qrPart, setQrPart] = useState(null); 
     const [form] = Form.useForm();
+    const [movementForm] = Form.useForm(); 
     const [filters, setFilters] = useState({ name: '', status: null, category: null }); 
     
-    // Phân quyền: Admin (0) và User (3) có quyền chỉnh sửa/thêm/xóa
     const canEdit = roleLevel === 0 || roleLevel === 3; 
     const isReadOnly = !canEdit;
 
-    // HÀM: Xử lý tạo QR Code (giữ nguyên)
-    const handleCreateQrCode = (record) => {
-        generateQrCode(record.id, record.name);
+    // --- Logic Nhập/Xuất Kho Thủ công ---
+    const handleOpenMovementModal = () => {
+         if (isReadOnly) return messageApi.warning("Bạn không có quyền quản lý nhập/xuất kho.");
+         movementForm.resetFields();
+         movementForm.setFieldsValue({ type: 'OUT' });
+         setIsMovementModalVisible(true);
     };
-
-    // EFFECT: Đã loại bỏ logic Quét QR từ URL
-    useEffect(() => {
-        // Code đã bị xóa theo yêu cầu trước đó.
-    }, [location.search, navigate]);
-
+    
+    const handleRecordMovement = (values) => {
+         // Gọi hàm ghi nhận giao dịch từ hook
+         const success = recordStockMovement(
+            values.partId, 
+            values.quantity, 
+            values.type, 
+            values.notes
+         );
+         if (success) {
+            setIsMovementModalVisible(false);
+            movementForm.resetFields();
+         }
+    };
+    
     // --- Logic CRUD & Modal (giữ nguyên) ---
     const handleAdd = () => {
         if (isReadOnly) return messageApi.warning("Bạn không có quyền thêm vật tư.");
@@ -421,6 +434,14 @@ const SparePartsInventoryPageContent = () => {
                     </Col>
                     <Col span={10} style={{ textAlign: 'right' }}>
                         <Space>
+                            {/* NÚT NHẬP/XUẤT KHO THỦ CÔNG */}
+                            <Button 
+                                icon={<SwapOutlined />} 
+                                onClick={handleOpenMovementModal}
+                                disabled={isReadOnly}
+                            >
+                                Nhập/Xuất Kho
+                            </Button>
                             <Button 
                                 icon={<DownloadOutlined />} 
                                 onClick={handleExport}
@@ -451,7 +472,7 @@ const SparePartsInventoryPageContent = () => {
                 className="tw-shadow-xl"
             />
 
-            {/* Modal Thêm/Sửa Vật tư */}
+            {/* Modal Thêm/Sửa Vật tư giữ nguyên */}
             <Modal
                 title={currentPart ? "Chỉnh sửa Vật tư" : "Thêm Vật tư Mới"}
                 open={isModalVisible}
@@ -538,7 +559,7 @@ const SparePartsInventoryPageContent = () => {
                 </Form>
             </Modal>
             
-            {/* Modal In QR Code */}
+            {/* Modal In QR Code giữ nguyên */}
             <Modal
                 title={<Title level={4}><PrinterOutlined /> In Mã QR Vật tư: {qrPart?.id}</Title>}
                 open={isQRModalVisible}
@@ -547,6 +568,61 @@ const SparePartsInventoryPageContent = () => {
                 width={400}
             >
                 {qrPart && <PrintableQRCode part={qrPart} />}
+            </Modal>
+            
+            {/* Modal Nhập/Xuất Kho MỚI (CHỨC NĂNG THỦ CÔNG) */}
+             <Modal
+                title={<Title level={4}><SwapOutlined /> Ghi nhận Nhập/Xuất Kho</Title>}
+                open={isMovementModalVisible}
+                onCancel={() => setIsMovementModalVisible(false)}
+                footer={null}
+                width={500}
+            >
+                <Form form={movementForm} layout="vertical" onFinish={handleRecordMovement}>
+                    <Form.Item 
+                        name="type" 
+                        label="Loại Giao dịch"
+                        rules={[{ required: true, message: 'Vui lòng chọn loại giao dịch' }]}
+                    >
+                         <Select>
+                            <Option value="IN">Nhập kho (IN)</Option>
+                            <Option value="OUT">Xuất kho (OUT)</Option>
+                         </Select>
+                    </Form.Item>
+                    
+                    <Form.Item 
+                        name="partId" 
+                        label="Mã Vật tư"
+                        rules={[{ required: true, message: 'Vui lòng chọn Vật tư' }]}
+                    >
+                         <Select 
+                            placeholder="Chọn Vật tư"
+                            showSearch
+                            optionFilterProp="children"
+                        >
+                            {/* Sử dụng partsWithStatus để hiển thị tồn kho hiện tại */}
+                            {parts.map(p => <Option key={p.id} value={p.id}>{p.id} - {p.name} (Tồn: {p.stock} {p.unit})</Option>)}
+                        </Select>
+                    </Form.Item>
+                    
+                    <Form.Item 
+                        name="quantity" 
+                        label="Số lượng"
+                        rules={[{ required: true, type: 'number', min: 1, message: 'Số lượng phải lớn hơn 0' }]}
+                    >
+                         <InputNumber min={1} style={{ width: '100%' }} />
+                    </Form.Item>
+                    
+                    <Form.Item name="notes" label="Ghi chú">
+                        <Input.TextArea rows={2} />
+                    </Form.Item>
+                    
+                    <Form.Item className="tw-mt-4">
+                        <Button type="primary" htmlType="submit" block>
+                            Ghi nhận Giao dịch
+                        </Button>
+                    </Form.Item>
+                </Form>
             </Modal>
         </Space>
     );

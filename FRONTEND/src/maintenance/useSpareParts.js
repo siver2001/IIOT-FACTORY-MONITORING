@@ -5,14 +5,8 @@ import { App } from 'antd';
 import { faker } from '@faker-js/faker';
 import dayjs from 'dayjs';
 
-// **KHÔNG CÒN initialCategories tĩnh và export PART_CATEGORIES ở đây**
-
 /**
  * Hàm tính toán trạng thái tồn kho dựa trên ngưỡng linh hoạt.
- * @param {number} stock - Số lượng tồn kho hiện tại.
- * @param {number} critical - Ngưỡng nguy hiểm (Critical Threshold).
- * @param {number} low - Ngưỡng cảnh báo (Low Stock Threshold).
- * @returns {{status: string, color: string}}
  */
 const getPartStatus = (stock, critical, low) => {
     if (stock <= critical) {
@@ -152,11 +146,13 @@ export const useSpareParts = () => {
             lastIn: new Date().toISOString(),
             category: importedCategory, // Dùng category mới
         }));
+        
+        // Tự động thêm category mới vào danh sách (dù useMemo sẽ tự cập nhật)
         setParts(prev => [...mockNewParts, ...prev]);
         message.success('Đã nhập thành công 5 bản ghi mới!');
     }, [message]);
     
-    // HÀM: TẠO QR CODE CHO VẬT TƯ (giữ nguyên)
+    // HÀM: TẠO QR CODE CHO VẬT TƯ
     const generateQrCode = useCallback((partId, partName) => {
         const newQrCodeId = faker.string.uuid();
         setParts(prev => prev.map(p => 
@@ -165,9 +161,41 @@ export const useSpareParts = () => {
         message.success(`Đã tạo QR Code thành công cho vật tư ${partName}.`);
         return newQrCodeId;
     }, [message]);
+    
+    // NEW: Hàm ghi nhận nhập/xuất kho (Stock Movement)
+    const recordStockMovement = useCallback((partId, quantity, type, notes) => {
+        let newStock = 0;
+        let success = false;
+        
+        setParts(prev => prev.map(p => {
+            if (p.id === partId) {
+                if (type === 'IN') {
+                    newStock = p.stock + quantity;
+                    message.success(`Nhập kho thành công: +${quantity} ${p.unit} cho ${p.name}.`);
+                    success = true;
+                    return { ...p, stock: newStock, lastIn: new Date().toISOString() };
+                } else if (type === 'OUT') {
+                    if (p.stock >= quantity) {
+                        newStock = p.stock - quantity;
+                        // Chỉ hiển thị thông báo cho thao tác thủ công
+                        if (!notes || !notes.startsWith('Sử dụng cho WO')) { 
+                           message.info(`Xuất kho thành công: -${quantity} ${p.unit} cho ${p.name}.`);
+                        }
+                        success = true;
+                        return { ...p, stock: newStock };
+                    } else {
+                        message.error(`Không đủ tồn kho: Chỉ còn ${p.stock} ${p.unit} của ${p.name}.`);
+                        success = false;
+                        return p;
+                    }
+                }
+            }
+            return p;
+        }));
+        return success;
+    }, [message]);
 
-
-    // Hàm tra cứu chi tiết vật tư dựa trên QR ID (giữ nguyên)
+    // Hàm tra cứu chi tiết vật tư dựa trên QR ID
     const getPartByQrId = useCallback((qrCodeId) => {
         return partsWithStatus.find(p => p.qrCodeId === qrCodeId);
     }, [partsWithStatus]);
@@ -179,8 +207,9 @@ export const useSpareParts = () => {
         deletePart,
         mockImport,
         getPartByQrId, 
-        PART_CATEGORIES: allPartCategories, // EXPORT CATEGORY LIST TỰ ĐỘNG DỌN DẸP
+        PART_CATEGORIES: allPartCategories, 
         generateQrCode, 
+        recordStockMovement, // EXPORT CHO CHỨC NĂNG THỦ CÔNG
         // Dữ liệu cho KPI Dashboard nhỏ 
         summary: {
             totalItems: parts.length,

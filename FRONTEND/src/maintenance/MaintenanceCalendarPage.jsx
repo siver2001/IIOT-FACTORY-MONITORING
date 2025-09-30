@@ -87,8 +87,8 @@ const MaintenanceCalendarPageContent = () => {
         return map;
     }, [workOrders]);
 
-    // Hàm tùy chỉnh hiển thị nội dung ô ngày (giữ nguyên)
-    const dateCellRender = (value) => {
+    // Hàm tùy chỉnh hiển thị nội dung ô ngày (NỘI DUNG CŨ CỦA dateCellRender)
+    const renderDateCellContent = (value) => { // value là Dayjs object
         const dateKey = value.format('YYYY-MM-DD');
         const listData = woByDate.get(dateKey) || [];
 
@@ -102,6 +102,15 @@ const MaintenanceCalendarPageContent = () => {
                 {listData.length > 3 && <li className="tw-text-xs tw-text-gray-500">+{listData.length - 3} WO khác</li>}
             </ul>
         );
+    };
+    
+    // HÀM MỚI: cellRender để thay thế dateCellRender
+    const cellRender = (current, info) => {
+        if (info.type === 'date') {
+            return renderDateCellContent(current);
+        }
+        // Trả về node gốc cho các loại cell khác (tháng, năm)
+        return info.originNode; 
     };
 
     // Hàm xử lý sự kiện khi click vào một ngày (CẬP NHẬT)
@@ -122,7 +131,7 @@ const MaintenanceCalendarPageContent = () => {
         return <Tag color={color}>{status}</Tag>;
     };
 
-    // --- LOGIC TẠO MỚI / CHỈNH SỬA / XÓA ---
+    // --- LOGIC TẠO MỚI / CHỈNH SỬA / XÓA (giữ nguyên) ---
     
     // HÀM MỚI: Xử lý Add WO (Mở form Edit ở chế độ tạo mới)
     const handleAddWO = () => {
@@ -211,7 +220,7 @@ const MaintenanceCalendarPageContent = () => {
             
             <div className="tw-shadow-xl tw-p-4 tw-bg-white tw-rounded-lg">
                 <Calendar 
-                    dateCellRender={dateCellRender} 
+                    cellRender={cellRender} // <--- ĐÃ THAY THẾ dateCellRender
                     onSelect={onSelect}
                 />
             </div>

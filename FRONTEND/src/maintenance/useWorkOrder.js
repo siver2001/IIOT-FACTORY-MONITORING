@@ -9,9 +9,6 @@ dayjs.extend(isSameOrBefore);
 
 // Import hook Asset Management để cập nhật ngày PM
 import { useAssetManagement } from '../hooks/useAssetManagement'; 
-
-// Giả định hàm này được export từ PartsCatalog.js
-// (Để code này hoạt động, cần đảm bảo PartsCatalog.js có hàm getPartPrice(partId))
 import { getPartPrice } from './PartsCatalog'; 
 
 const ASSIGNEES = ['Kỹ sư A', 'Kỹ sư B', 'Kỹ sư C', 'Trưởng ca'];
@@ -84,7 +81,7 @@ export const useWorkOrder = () => {
     const { message } = App.useApp();
     const [workOrders, setWorkOrders] = useState(mockInitialWorkOrders);
 
-    // 💥 NEW: LẤY ASSETS VÀ HÀM CẬP NHẬT TÀI SẢN
+    // LẤY ASSETS VÀ HÀM CẬP NHẬT TÀI SẢN
     const { assets, updateAsset } = useAssetManagement();
 
     // 1. Tạo Lệnh công việc mới
@@ -110,7 +107,7 @@ export const useWorkOrder = () => {
         message.info(`Đã cập nhật Lệnh công việc: ${woId}`);
     }, [message]);
 
-    // 3. Logic Hoàn thành WO (Đã tích hợp Tự động Cập nhật PM Date)
+    // 3. Logic Hoàn thành WO (Đã tích hợp Tự động Cập nhật PM Date - KHÔNG TRỪ KHO)
     const completeWorkOrder = useCallback((woId, completionData) => {
         const completedDate = new Date();
         let isAssetPMUpdated = false;

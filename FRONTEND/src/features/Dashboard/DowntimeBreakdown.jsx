@@ -1,35 +1,47 @@
+// FRONTEND/src/features/Dashboard/DowntimeBreakdown.jsx
+
 import React from 'react';
 import { Card, Typography, Statistic, Row, Col } from 'antd';
 import { AreaChartOutlined, StopOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { useOperationHistory } from '../../hooks/useOperationHistory'; // <-- IMPORT HOOK MỚI
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const { Title, Text } = Typography;
 
-// Mock Data cho Downtime Breakdown
-const MOCK_DOWNTIME_DATA = {
-    totalDowntimeHours: 55.2,
-    breakdown: [
-        { cause: 'Lỗi Thiết bị/Bảo trì', hours: 22.5, color: '#ff4d4f' },
-        { cause: 'Thiếu Nguyên liệu', hours: 15.0, color: '#faad14' },
-        { cause: 'Thay đổi Lô/Cấu hình', hours: 10.2, color: '#1677ff' },
-        { cause: 'Lỗi Vận hành', hours: 7.5, color: '#52c41a' },
-    ]
-};
-
 const DowntimeBreakdown = () => {
+    // SỬ DỤNG DỮ LIỆU TÍNH TOÁN TỪ HOOK
+    const { downtimeBreakdown } = useOperationHistory(); 
+    
+    const downtimeData = downtimeBreakdown; 
+    
+    // Nếu không có dữ liệu breakdown, sử dụng mảng rỗng để tránh lỗi
+    const hasData = downtimeData.breakdown.length > 0;
+
     const data = {
-        labels: MOCK_DOWNTIME_DATA.breakdown.map(d => d.cause),
+        labels: hasData ? downtimeData.breakdown.map(d => d.cause) : ['Không có thời gian dừng'],
         datasets: [
             {
-                data: MOCK_DOWNTIME_DATA.breakdown.map(d => d.hours),
-                backgroundColor: MOCK_DOWNTIME_DATA.breakdown.map(d => d.color),
+                data: hasData ? downtimeData.breakdown.map(d => d.hours) : [1],
+                backgroundColor: hasData ? downtimeData.breakdown.map(d => d.color) : ['#d9d9d9'],
                 hoverOffset: 4,
             },
         ],
     };
+    
+    // Nếu không có dữ liệu thực tế (tổng thời gian = 0)
+    if (!hasData) {
+        return (
+            <Card title={<Title level={4} style={{ margin: 0 }}><AreaChartOutlined /> Phân tích Dừng máy (Downtime Breakdown)</Title>}
+                variant="default" 
+                className="tw-shadow-md"
+            >
+                 <Text type="secondary" className="tw-text-center tw-block tw-py-4">Không có thời gian dừng máy (Non-Running) được ghi nhận trong lịch sử.</Text>
+            </Card>
+        );
+    }
 
     return (
         <Card 
@@ -42,7 +54,7 @@ const DowntimeBreakdown = () => {
                 <Col span={8}>
                     <Statistic
                         title="Tổng thời gian dừng"
-                        value={MOCK_DOWNTIME_DATA.totalDowntimeHours}
+                        value={downtimeData.totalDowntimeHours}
                         precision={1}
                         suffix="giờ"
                         prefix={<ClockCircleOutlined />}
