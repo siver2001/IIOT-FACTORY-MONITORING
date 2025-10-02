@@ -7,11 +7,32 @@ import {
     FireOutlined, BulbOutlined, StockOutlined, SettingOutlined, 
     ClockCircleOutlined, ThunderboltOutlined, CheckCircleOutlined,
     WarningOutlined, SyncOutlined, LoadingOutlined, ProfileOutlined, 
-    PoweroffOutlined, BarChartOutlined 
+    PoweroffOutlined, BarChartOutlined, AlertOutlined, HeartFilled,
+    HeatMapOutlined, FallOutlined, RiseOutlined 
 } from '@ant-design/icons';
-import laserScadaImage from '../../assets/scada/laser_scada_layout.png'; // IMPORT HÌNH ẢNH SCADA
+import laserScadaImage from '../../assets/scada/laser_scada_layout.png'; 
 
 const { Title, Text } = Typography;
+
+// Component Mini KPI Card
+const MiniKpiCard = ({ title, value, unit, color, icon: Icon, subTitle, isPulse = false, precision = 1 }) => (
+    <Card 
+        size="small" 
+        variant="borderless" 
+        className={`tw-shadow-md tw-mb-2 ${isPulse ? 'tw-animate-pulse tw-border-l-4 tw-border-red-500' : ''}`}
+        styles={{ body: { padding: '10px 12px' } }}
+    >
+        <Statistic
+            title={title}
+            value={value}
+            precision={precision}
+            suffix={unit}
+            prefix={Icon ? <Icon style={{ color: color, fontSize: 18 }} /> : null}
+            valueStyle={{ color: color, fontSize: 20, fontWeight: 'bold' }}
+        />
+        {subTitle && <Text type="secondary" className="tw-block tw-text-xs tw-mt-1">{subTitle}</Text>}
+    </Card>
+);
 
 const ScadaViewLaser = ({ machineDetails, liveData }) => {
     // Dữ liệu mock riêng cho Laser
@@ -21,103 +42,125 @@ const ScadaViewLaser = ({ machineDetails, liveData }) => {
     const cuttingSpeed = machineDetails.OEE * 10;
     const waterFlow = parseFloat((10 + Math.random() * 2).toFixed(1)); // L/min
 
-    const powerColor = laserPower < 60 ? 'red' : (laserPower < 80 ? 'orange' : 'green');
-    const gasColor = gasPressure < 16 ? 'red' : 'green';
-    const chillerTempColor = chillerTemp > 25 ? 'red' : (chillerTemp > 22 ? 'orange' : 'green');
+    const powerColor = laserPower < 60 ? '#ff4d4f' : (laserPower < 80 ? '#faad14' : '#52c41a');
+    const gasColor = gasPressure < 16 ? '#ff4d4f' : '#52c41a';
+    const chillerTempColor = chillerTemp > 25 ? '#ff4d4f' : (chillerTemp > 22 ? '#faad14' : '#52c41a');
 
     // FIX LỖI: Định nghĩa isRULCritical và healthProgressColor
     const isRULCritical = machineDetails.RUL < 1000;
     const healthProgressColor = machineDetails.healthScore > 80 ? '#52c41a' : (machineDetails.healthScore > 60 ? '#faad14' : '#ff4d4f');
+    const isError = machineDetails.status === 'ERROR';
 
+    // Lấy thông tin trạng thái để hiển thị trên SCADA
+    const { color, text: statusText, icon: statusIcon } = {
+        'RUN': { color: 'green', text: 'ĐANG CẮT', icon: <CheckCircleOutlined /> },
+        'IDLE': { color: 'blue', text: 'DỪNG CHỜ', icon: <ClockCircleOutlined /> },
+        'ERROR': { color: 'red', text: 'LỖI CRITICAL', icon: <AlertOutlined /> },
+    }[machineDetails.status] || { color: 'default', text: 'UNKNOWN', icon: <WarningOutlined /> };
 
-    const renderStatusLight = (colorClass, condition) => (
-        <span className={`tw-h-4 tw-w-4 tw-rounded-full tw-inline-block tw-mr-2 ${condition ? colorClass : 'tw-bg-gray-500'}`} />
-    );
 
     return (
-        <Row gutter={24} style={{ minHeight: 600 }}>
+        <Row gutter={24} style={{ minHeight: '72vh' }}>
             
-            {/* CỘT 1: SCADA VISUALIZATION (Main Process Flow) */}
+            {/* CỘT 1: SCADA VISUALIZATION - TÁI CẤU TRÚC 3 CỘT (4 | 16 | 4) */}
             <Col span={18}>
                 <Card 
-                    title={<Title level={4} style={{ margin: 0 }}><FireOutlined /> Màn hình SCADA: Máy Cắt Laser Fiber (M-LASER-102)</Title>}
+                    title={<Title level={4} style={{ margin: 0 }}><FireOutlined /> Màn hình Giám sát Chi tiết (M-LASER-102)</Title>}
                     className="tw-shadow-xl tw-h-full"
-                    styles={{ body: { padding: 0 } }}
+                    extra={
+                        <Tag color={color} className={`tw-text-base tw-px-3 tw-py-1 tw-font-bold ${isError ? 'tw-animate-pulse' : ''}`}>
+                            {isError ? <AlertOutlined className='tw-mr-2' /> : (machineDetails.status === 'RUN' ? <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} className='tw-mr-2' /> : statusIcon)}
+                            {statusText.toUpperCase()}
+                        </Tag>
+                    }
                 >
-                    <div 
-                        className="tw-relative tw-w-full tw-h-[700px] tw-bg-cover tw-bg-center tw-text-white tw-font-mono tw-text-sm" 
-                        style={{ backgroundImage: `url(${laserScadaImage})`, backgroundSize: '100% 100%' }}
-                    >
-                        {/* --- OVERLAYS CÁC CHỈ SỐ TRÊN HÌNH SCADA --- */}
+                    <Row gutter={16} className="tw-h-full">
+                        {/* CỘT TRÁI: Dữ liệu Vận hành Laser (span 4) */}
+                        <Col span={4} className="tw-h-full">
+                            <Title level={5} className="tw-mt-0 tw-mb-2">Thông số Cắt & Nguồn</Title>
+                            <Divider style={{ margin: '8px 0' }} />
+                            
+                            <MiniKpiCard 
+                                title="Công suất Laser"
+                                value={laserPower}
+                                unit="%"
+                                color={powerColor}
+                                icon={FireOutlined}
+                                isPulse={laserPower < 60}
+                                subTitle="Đang cắt thép không gỉ"
+                            />
+                            
+                            <MiniKpiCard 
+                                title="Tốc độ Cắt"
+                                value={cuttingSpeed}
+                                unit="mm/s"
+                                color="#1677ff"
+                                icon={RiseOutlined}
+                                subTitle="Vị trí X: 1200mm, Y: 800mm"
+                            />
 
-                        {/* TRẠNG THÁI MÁY CHUNG */}
-                        <div className="tw-absolute" style={{ top: '1%', left: '1%' }}>
-                            <Tag color={machineDetails.status === 'RUN' ? 'green' : (machineDetails.status === 'IDLE' ? 'blue' : 'red')} className="tw-text-lg tw-px-3 tw-py-1">
-                                {machineDetails.status === 'RUN' ? <Spin indicator={<LoadingOutlined style={{ fontSize: 18 }} spin />} className='tw-mr-2' /> : (machineDetails.status === 'IDLE' ? <ClockCircleOutlined className='tw-mr-2' /> : <WarningOutlined className='tw-mr-2' />)}
-                                {machineDetails.status.toUpperCase()}
-                            </Tag>
-                        </div>
+                            <MiniKpiCard 
+                                title="Áp suất Khí trợ"
+                                value={gasPressure}
+                                unit="bar"
+                                color={gasColor}
+                                icon={BulbOutlined}
+                                isPulse={gasPressure < 16}
+                                subTitle="Loại khí: N2"
+                                precision={1}
+                            />
+                        </Col>
 
-                        {/* NGUỒN LASER */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '10%', left: '7%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold" style={{color: '#90EE90'}}>NGUỒN LASER</Text>
-                            <div className="tw-flex tw-items-center tw-mt-1">
-                                {renderStatusLight(powerColor === 'red' ? 'tw-bg-red-500' : (powerColor === 'orange' ? 'tw-bg-orange-400' : 'tw-bg-green-500'), laserPower > 0)}
-                                <Text className={`tw-text-xl tw-font-bold ${powerColor === 'red' ? 'tw-text-red-500' : (powerColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                    POWER: {laserPower.toFixed(1)}%
-                                </Text>
+                        {/* CỘT GIỮA: Hình ảnh SCADA (span 16) */}
+                        <Col span={16} className="tw-flex tw-flex-col tw-h-full">
+                            <div className="tw-flex-1 tw-w-full tw-rounded-lg tw-overflow-hidden tw-shadow-inner tw-border tw-border-gray-200">
+                                <img
+                                src={laserScadaImage}
+                                alt="SCADA layout"
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                                />
                             </div>
-                            <Text className="tw-block tw-text-lg">Điện áp: 380V</Text>
-                        </div>
+                        </Col>
 
-                        {/* KHÍ TRỢ GIÚP (ASSIST GAS) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '10%', left: '35%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold" style={{color: '#90EE90'}}>KHÍ TRỢ GIÚP</Text>
-                            <div className="tw-flex tw-items-center tw-mt-1">
-                                {renderStatusLight(gasColor === 'red' ? 'tw-bg-red-500' : 'tw-bg-green-500', gasPressure > 10)}
-                                <Text className={`tw-text-xl tw-font-bold ${gasColor === 'red' ? 'tw-text-red-500' : 'tw-text-green-400'}`}>
-                                    ÁP SUẤT: {gasPressure.toFixed(1)} bar
-                                </Text>
-                            </div>
-                            <Text className="tw-block tw-text-lg">Loại khí: N2</Text>
-                        </div>
+                        {/* CỘT PHẢI: Dữ liệu Chiller/Sức khỏe (span 4) */}
+                        <Col span={4} className="tw-h-full">
+                            <Title level={5} className="tw-mt-0 tw-mb-2">Trạng thái Chiller & PdM</Title>
+                            <Divider style={{ margin: '8px 0' }} />
+                            
+                            <MiniKpiCard 
+                                title="Nhiệt độ Chiller"
+                                value={chillerTemp}
+                                unit="°C"
+                                color={chillerTempColor}
+                                icon={HeatMapOutlined}
+                                isPulse={chillerTemp > 25}
+                                subTitle="Ngưỡng Max: 28°C"
+                            />
 
-                        {/* ĐẦU CẮT (CUTTING HEAD) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '45%', left: '40%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold" style={{color: '#90EE90'}}>ĐẦU CẮT</Text>
-                            <Text className="tw-block tw-text-lg">Tốc độ cắt: {cuttingSpeed.toFixed(1)} mm/s</Text>
-                            <Text className="tw-block tw-text-lg">Focus Lens: OK</Text>
-                        </div>
+                            <MiniKpiCard 
+                                title="Lưu lượng Nước"
+                                value={waterFlow}
+                                unit="L/phút"
+                                color="#1677ff"
+                                icon={FallOutlined}
+                                subTitle="Đảm bảo làm mát nguồn laser"
+                            />
 
-                        {/* HỆ THỐNG LÀM MÁT (CHILLER) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '70%', left: '7%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold" style={{color: '#90EE90'}}>CHILLER</Text>
-                            <div className="tw-flex tw-items-center tw-mt-1">
-                                {renderStatusLight(chillerTempColor === 'red' ? 'tw-bg-red-500' : (chillerTempColor === 'orange' ? 'tw-bg-orange-400' : 'tw-bg-green-500'), chillerTemp < 28)}
-                                <Text className={`tw-text-xl tw-font-bold ${chillerTempColor === 'red' ? 'tw-text-red-500' : (chillerTempColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                    NHIỆT ĐỘ: {chillerTemp.toFixed(1)}°C
-                                </Text>
-                            </div>
-                            <Text className="tw-block tw-text-lg">Lưu lượng nước: {waterFlow.toFixed(1)} L/phút</Text>
-                        </div>
-
-                        {/* BÀN MÁY */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '80%', left: '70%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold" style={{color: '#90EE90'}}>BÀN MÁY</Text>
-                            <Text className="tw-block tw-text-lg">Vị trí X: 1200mm</Text>
-                            <Text className="tw-block tw-text-lg">Vị trí Y: 800mm</Text>
-                        </div>
-
-                        {/* KPI PdM ở góc */}
-                        <div className="tw-absolute tw-p-2 tw-rounded-lg tw-bg-gray-700 tw-text-white" style={{ bottom: '1%', right: '1%' }}>
-                            <Statistic title="Health Score (Nguồn)" value={machineDetails.healthScore} suffix="/100" valueStyle={{ color: healthProgressColor, fontSize: 18 }} />
-                            <Statistic title="RUL (Nguồn)" value={machineDetails.RUL} suffix="giờ" valueStyle={{ color: isRULCritical ? '#ff4d4f' : '#1677ff', fontSize: 18 }} />
-                        </div>
-                    </div>
+                            <Divider style={{ margin: '12px 0' }} />
+                             <MiniKpiCard 
+                                title="Health Score (Nguồn)"
+                                value={machineDetails.healthScore}
+                                unit="/100"
+                                color={healthProgressColor}
+                                icon={HeartFilled}
+                                subTitle={`RUL Ước tính: ${machineDetails.RUL} giờ`}
+                            />
+                        </Col>
+                    </Row>
                 </Card>
             </Col>
 
-            {/* CỘT 2: THÔNG TIN CHI TIẾT & HÀNH ĐỘNG */}
+            {/* CỘT 2: THÔNG TIN CHI TIẾT & HÀNH ĐỘNG (span 6) - GIỮ NGUYÊN */}
             <Col span={6}>
                 <Space direction="vertical" size={16} style={{ display: 'flex' }}>
                     

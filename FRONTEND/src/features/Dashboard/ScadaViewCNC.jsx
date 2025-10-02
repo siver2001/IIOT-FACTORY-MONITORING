@@ -1,136 +1,185 @@
 // FRONTEND/src/features/Dashboard/ScadaViewCNC.jsx
 
 import React from 'react';
-// ĐÃ SỬA: Thêm Divider vào import từ 'antd'
 import { Card, Typography, Space, Row, Col, Statistic, Tag, Progress, Button, Spin, Divider } from 'antd'; 
 import { 
-    ToolOutlined, ClockCircleOutlined, FireOutlined, ThunderboltOutlined, 
+    ToolOutlined, ClockCircleOutlined, ThunderboltOutlined, 
     PoweroffOutlined, ArrowUpOutlined, CheckCircleOutlined, WarningOutlined,
-    SyncOutlined, LoadingOutlined, ProfileOutlined, SettingOutlined, BarChartOutlined // ĐÃ XÓA Divider khỏi đây
+    SyncOutlined, LoadingOutlined, ProfileOutlined, SettingOutlined, BarChartOutlined,
+    HeatMapOutlined, FallOutlined, RiseOutlined, AlertOutlined, HeartFilled  
 } from '@ant-design/icons';
-import cncScadaImage from '../../assets/scada/cnc_scada_layout.png'; // IMPORT HÌNH ẢNH SCADA
+import cncScadaImage from '../../assets/scada/cnc_scada_layout.png'; 
 
 const { Title, Text } = Typography;
+
+// Component Mini KPI Card mới
+const MiniKpiCard = ({ title, value, unit, color, icon: Icon, subTitle, isPulse = false, precision = 1 }) => (
+    <Card 
+        size="small" 
+        variant="borderless" 
+        className={`tw-shadow-md tw-mb-2 ${isPulse ? 'tw-animate-pulse tw-border-l-4 tw-border-red-500' : ''}`}
+        styles={{ body: { padding: '10px 12px' } }}
+    >
+        <Statistic
+            title={title}
+            value={value}
+            precision={precision}
+            suffix={unit}
+            prefix={Icon ? <Icon style={{ color: color, fontSize: 18 }} /> : null}
+            valueStyle={{ color: color, fontSize: 20, fontWeight: 'bold' }}
+        />
+        {subTitle && <Text type="secondary" className="tw-block tw-text-xs tw-mt-1">{subTitle}</Text>}
+    </Card>
+);
+
 
 const ScadaViewCNC = ({ machineDetails, liveData }) => {
     // Dữ liệu mock riêng cho CNC
     const spindleLoad = machineDetails.currentLoad; // Tái sử dụng currentLoad
     const feedRate = parseFloat((500 + Math.sin(liveData.RUL / 500) * 100).toFixed(1));
-    const toolLifePercent = Math.min(100, Math.round(machineDetails.healthScore * 1.2)); // Tool life based on health
+    const toolLifePercent = Math.min(100, Math.round(machineDetails.healthScore * 1.2)); 
     const coolantFlow = machineDetails.OEE * 1.5;
     const spindleSpeed = 800 + Math.floor(Math.random() * 200); // RPM
     const motorCurrent = parseFloat((15 + Math.random() * 5).toFixed(1)); // Amps
 
-    const loadColor = spindleLoad > 85 ? 'red' : (spindleLoad > 70 ? 'orange' : 'green');
-    const toolLifeColor = toolLifePercent > 60 ? 'green' : (toolLifePercent > 30 ? 'orange' : 'red');
-    const tempColor = machineDetails.temp > 45 ? 'red' : (machineDetails.temp > 40 ? 'orange' : 'green');
-    const vibrationColor = machineDetails.vibration > 1.5 ? 'red' : (machineDetails.vibration > 1.0 ? 'orange' : 'green');
-    const coolantStatusColor = coolantFlow < 100 ? 'red' : 'green';
-    
-    // Khai báo 2 biến còn thiếu để khắc phục lỗi ReferenceError
+    const loadColor = spindleLoad > 85 ? '#ff4d4f' : (spindleLoad > 70 ? '#faad14' : '#52c41a');
+    const toolLifeColor = toolLifePercent > 60 ? '#52c41a' : (toolLifePercent > 30 ? '#faad14' : '#ff4d4f');
+    const tempColor = machineDetails.temp > 45 ? '#ff4d4f' : (machineDetails.temp > 40 ? '#faad14' : '#52c41a');
+    const vibrationColor = machineDetails.vibration > 1.5 ? '#ff4d4f' : (machineDetails.vibration > 1.0 ? '#faad14' : '#52c41a');
     const isRULCritical = machineDetails.RUL < 1000;
     const healthProgressColor = machineDetails.healthScore > 80 ? '#52c41a' : (machineDetails.healthScore > 60 ? '#faad14' : '#ff4d4f');
+    const isError = machineDetails.status === 'ERROR';
 
     const renderStatusLight = (colorClass, condition) => (
         <span className={`tw-h-4 tw-w-4 tw-rounded-full tw-inline-block tw-mr-2 ${condition ? colorClass : 'tw-bg-gray-500'}`} />
     );
 
+    // Lấy thông tin trạng thái để hiển thị trên SCADA
+    const { color, text: statusText, icon: statusIcon } = {
+        'RUN': { color: 'green', text: 'ĐANG GIA CÔNG', icon: <CheckCircleOutlined /> },
+        'IDLE': { color: 'blue', text: 'DỪNG CHỜ', icon: <ClockCircleOutlined /> },
+        'ERROR': { color: 'red', text: 'LỖI CRITICAL', icon: <AlertOutlined /> },
+    }[machineDetails.status] || { color: 'default', text: 'UNKNOWN', icon: <WarningOutlined /> };
+
+
     return (
-        <Row gutter={24} style={{ minHeight: 600 }}>
+        <Row gutter={24} style={{ minHeight: '72vh' }}>
             
-            {/* CỘT 1: SCADA VISUALIZATION (Main Process Flow) */}
+            {/* CỘT 1: SCADA VISUALIZATION (Main Process Flow) - TÁI CẤU TRÚC 3 CỘT (4 | 16 | 4) */}
             <Col span={18}>
                 <Card 
-                    title={<Title level={4} style={{ margin: 0 }}><ToolOutlined /> Màn hình SCADA: Máy Phay CNC 5 trục (M-CNC-101)</Title>}
+                    title={<Title level={4} style={{ margin: 0 }}><ToolOutlined /> Màn hình Giám sát Chi tiết (M-CNC-101)</Title>}
                     className="tw-shadow-xl tw-h-full"
-                    styles={{ body: { padding: 0 } }}
+                    extra={
+                        <Tag color={color} className={`tw-text-base tw-px-3 tw-py-1 tw-font-bold ${isError ? 'tw-animate-pulse' : ''}`}>
+                            {isError ? <AlertOutlined className='tw-mr-2' /> : (machineDetails.status === 'RUN' ? <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} className='tw-mr-2' /> : statusIcon)}
+                            {statusText.toUpperCase()}
+                        </Tag>
+                    }
                 >
-                    <div 
-                        className="tw-relative tw-w-full tw-h-[700px] tw-bg-cover tw-bg-center tw-text-white tw-font-mono tw-text-sm" 
-                        style={{ backgroundImage: `url(${cncScadaImage})`, backgroundSize: '100% 100%' }}
-                    >
-                        {/* --- OVERLAYS CÁC CHỈ SỐ TRÊN HÌNH SCADA --- */}
-
-                        {/* TRẠNG THÁI MÁY CHUNG */}
-                        <div className="tw-absolute" style={{ top: '1%', left: '1%' }}>
-                            <Tag color={machineDetails.status === 'RUN' ? 'green' : (machineDetails.status === 'IDLE' ? 'blue' : 'red')} className="tw-text-lg tw-px-3 tw-py-1">
-                                {machineDetails.status === 'RUN' ? <Spin indicator={<LoadingOutlined style={{ fontSize: 18 }} spin />} className='tw-mr-2' /> : (machineDetails.status === 'IDLE' ? <ClockCircleOutlined className='tw-mr-2' /> : <WarningOutlined className='tw-mr-2' />)}
-                                {machineDetails.status.toUpperCase()}
-                            </Tag>
-                        </div>
-                        
-                        {/* BÀN MÁY / TRẠNG THÁI GIA CÔNG */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '32%', left: '20%' }}>
-                            <Text className="tw-block tw-text-lg tw-font-bold" style={{color: '#90EE90'}}>GIA CÔNG CHI TIẾT 1</Text>
-                            <Text className="tw-block">Thời gian còn lại: {Math.max(0, 15 - (liveData.RunningCount % 15)).toFixed(1)} phút</Text>
-                            <Text className="tw-block">Chương trình: PROG_A_001.NC</Text>
-                        </div>
-
-                        {/* TRỤC CHÍNH (SPINDLE) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '16%', left: '55%' }}>
-                            <Text className={`tw-block tw-text-xl tw-font-bold ${loadColor === 'red' ? 'tw-text-red-500 tw-animate-pulse' : (loadColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                Tải Trục Chính: {spindleLoad.toFixed(1)}%
-                            </Text>
-                            <Text className="tw-block tw-text-lg">Tốc độ: {spindleSpeed} RPM</Text>
-                        </div>
-
-                        {/* NHIỆT ĐỘ TRỤC */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '27%', left: '55%' }}>
-                            <Text className={`tw-block tw-text-xl tw-font-bold ${tempColor === 'red' ? 'tw-text-red-500 tw-animate-pulse' : (tempColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                Nhiệt độ Trục: {machineDetails.temp.toFixed(1)}°C
-                            </Text>
-                        </div>
-
-                        {/* RUNG ĐỘNG */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '38%', left: '55%' }}>
-                            <Text className={`tw-block tw-text-xl tw-font-bold ${vibrationColor === 'red' ? 'tw-text-red-500 tw-animate-pulse' : (vibrationColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                Rung động: {machineDetails.vibration.toFixed(2)} mm/s
-                            </Text>
-                        </div>
-
-                        {/* HỆ THỐNG LÀM MÁT (COOLANT SYSTEM) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '55%', left: '55%' }}>
-                            <div className="tw-flex tw-items-center">
-                                {renderStatusLight(coolantStatusColor === 'red' ? 'tw-bg-red-500' : 'tw-bg-green-500', coolantFlow > 0)}
-                                <Text className={`tw-text-xl tw-font-bold ${coolantStatusColor === 'red' ? 'tw-text-red-500' : 'tw-text-green-400'}`}>
-                                    Bơm Coolant: {coolantFlow > 0 ? 'ON' : 'OFF'}
-                                </Text>
-                            </div>
-                            <Text className="tw-block tw-text-lg">Lưu lượng: {coolantFlow.toFixed(1)} L/phút</Text>
-                        </div>
-
-                        {/* DỮ LIỆU ĐIỆN NĂNG */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '69%', left: '55%' }}>
-                            <Text className="tw-block tw-text-xl tw-font-bold tw-text-blue-400">
-                                Dòng điện Motor: {motorCurrent.toFixed(1)} A
-                            </Text>
-                        </div>
-
-                        {/* TUỔI THỌ DỤNG CỤ (TOOL LIFE) */}
-                        <div className="tw-absolute tw-text-left" style={{ top: '80%', left: '55%' }}>
-                            <Text className={`tw-block tw-text-xl tw-font-bold ${toolLifeColor === 'red' ? 'tw-text-red-500' : (toolLifeColor === 'orange' ? 'tw-text-orange-400' : 'tw-text-green-400')}`}>
-                                Tuổi thọ Dụng cụ: {toolLifePercent}%
-                            </Text>
-                            <Progress 
-                                percent={toolLifePercent} 
-                                showInfo={false} 
-                                status={toolLifePercent < 30 ? 'exception' : (toolLifePercent < 60 ? 'active' : 'success')}
-                                strokeColor={toolLifeColor === 'red' ? '#ff4d4f' : (toolLifeColor === 'orange' ? '#faad14' : '#52c41a')}
-                                className="tw-w-32 tw-mt-1"
+                    <Row gutter={16} className="tw-h-full">
+                        {/* CỘT TRÁI: Dữ liệu Vận hành/Sản xuất (span 4) */}
+                        <Col span={4} className="tw-h-full">
+                            <Title level={5} className="tw-mt-0 tw-mb-2">Thông số Trục chính</Title>
+                            <Divider style={{ margin: '8px 0' }} />
+                            
+                            <MiniKpiCard 
+                                title="Tải Trục chính"
+                                value={spindleLoad}
+                                unit="%"
+                                color={loadColor}
+                                icon={ArrowUpOutlined}
+                                isPulse={spindleLoad > 85}
+                                subTitle={`Tốc độ: ${spindleSpeed} RPM`}
                             />
-                        </div>
+                            
+                            <MiniKpiCard 
+                                title="Tuổi thọ Dụng cụ"
+                                value={toolLifePercent}
+                                unit="%"
+                                color={toolLifeColor}
+                                icon={ToolOutlined}
+                                isPulse={toolLifePercent < 30}
+                                subTitle={<Progress 
+                                            percent={toolLifePercent} 
+                                            showInfo={false} 
+                                            size="small"
+                                            strokeColor={toolLifeColor}
+                                        />}
+                            />
 
-                        {/* KPI PdM ở góc */}
-                        <div className="tw-absolute tw-p-2 tw-rounded-lg tw-bg-gray-700 tw-text-white" style={{ bottom: '1%', right: '1%' }}>
-                            <Statistic title="Health Score" value={machineDetails.healthScore} suffix="/100" valueStyle={{ color: healthProgressColor, fontSize: 18 }} />
-                            <Statistic title="RUL (Ước tính)" value={machineDetails.RUL} suffix="giờ" valueStyle={{ color: isRULCritical ? '#ff4d4f' : '#1677ff', fontSize: 18 }} />
-                        </div>
+                            <MiniKpiCard 
+                                title="Tốc độ Feed"
+                                value={feedRate}
+                                unit="mm/phút"
+                                color="#1677ff"
+                                icon={RiseOutlined}
+                                subTitle={`Thời gian còn lại: ${Math.max(0, 15 - (liveData.RunningCount % 15)).toFixed(1)} phút`}
+                                precision={0}
+                            />
+                        </Col>
 
-                    </div>
+                        {/* CỘT GIỮA: Hình ảnh SCADA (span 16) */}
+                        <Col span={16} className="tw-flex tw-flex-col tw-h-full">
+                            <div className="tw-flex-1 tw-w-full tw-rounded-lg tw-overflow-hidden tw-shadow-inner tw-border tw-border-gray-200">
+                                <img
+                                src={cncScadaImage /* hoặc laserScadaImage / pressScadaImage */}
+                                alt="SCADA layout"
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                                />
+                            </div>
+                        </Col>
+
+                        {/* CỘT PHẢI: Dữ liệu Nền tảng/Bảo trì (span 4) */}
+                        <Col span={4} className="tw-h-full">
+                            <Title level={5} className="tw-mt-0 tw-mb-2">Trạng thái Phụ trợ</Title>
+                            <Divider style={{ margin: '8px 0' }} />
+                            
+                            <MiniKpiCard 
+                                title="Nhiệt độ Trục"
+                                value={machineDetails.temp}
+                                unit="°C"
+                                color={tempColor}
+                                icon={HeatMapOutlined}
+                                isPulse={machineDetails.temp > 45}
+                                subTitle="Ngưỡng Max: 50°C"
+                            />
+
+                            <MiniKpiCard 
+                                title="Rung động"
+                                value={machineDetails.vibration}
+                                unit="mm/s"
+                                color={vibrationColor}
+                                icon={FallOutlined}
+                                isPulse={machineDetails.vibration > 1.5}
+                                subTitle="Ngưỡng Cảnh báo: 1.5 mm/s"
+                                precision={2}
+                            />
+
+                            <MiniKpiCard 
+                                title="Dòng điện Motor"
+                                value={motorCurrent}
+                                unit="A"
+                                color="#1677ff"
+                                icon={ThunderboltOutlined}
+                                subTitle={`Coolant: ${coolantFlow > 0 ? 'ON' : 'OFF'}`}
+                            />
+                            
+                            <Divider style={{ margin: '12px 0' }} />
+                             <MiniKpiCard 
+                                title="Health Score"
+                                value={machineDetails.healthScore}
+                                unit="/100"
+                                color={healthProgressColor}
+                                icon={HeartFilled}
+                                subTitle={`RUL: ${machineDetails.RUL} giờ`}
+                            />
+                        </Col>
+                    </Row>
                 </Card>
             </Col>
 
-            {/* CỘT 2: THÔNG TIN CHI TIẾT & HÀNH ĐỘNG */}
+            {/* CỘT 2: THÔNG TIN CHI TIẾT & HÀNH ĐỘNG (span 6) - GIỮ NGUYÊN */}
             <Col span={6}>
                 <Space direction="vertical" size={16} style={{ display: 'flex' }}>
                     
@@ -157,7 +206,7 @@ const ScadaViewCNC = ({ machineDetails, liveData }) => {
 
                     {/* CẢNH BÁO */}
                     <Card size="small" title={<Space><WarningOutlined /> Cảnh báo Hiện tại</Space>} className="tw-shadow-md tw-border-l-4 tw-border-red-500">
-                        {machineDetails.status === 'ERROR' ? (
+                        {isError ? (
                             <Text type="danger"><WarningOutlined /> Lỗi giao tiếp trục Z!</Text>
                         ) : (
                             <Text type="success">Không có cảnh báo</Text>
